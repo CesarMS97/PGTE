@@ -33,8 +33,8 @@ El flujo principal que la plataforma permite gestionar paso a paso es[cite: 3]:
 ---
 
 ## 👥 Equipo de Trabajo
-* **César Moreno** — Backend, Base de datos, Arquitectura y Gestión Técnica[cite: 3].
-* **Marcelo Tapia** — Frontend, Diseño de interfaz y Componentes visuales[cite: 3].
+* **César Moreno** — Frontend, Diseño de interfaz y Componentes visuales[cite: 3].
+* **Marcelo Tapia** — Backend, Base de datos, Arquitectura y Gestión Técnica[cite: 3].
 
 ---
 
