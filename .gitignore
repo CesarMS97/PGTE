@@ -32,6 +32,10 @@ yarn-error.log*
 .env*
 **/.env*
 
+# Permitir plantillas sin credenciales
+!.env.example
+!**/.env.example
+
 # Vercel
 .vercel
 
