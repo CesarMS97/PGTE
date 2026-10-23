@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Desplazamiento suave entre secciones */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Evita que el Navbar tape los títulos */
+html {
+  scroll-padding-top: 80px;
+}
