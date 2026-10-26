@@ -1,7 +1,8 @@
-export default function PlaceholderPage() {
+export default function CotizacionesPage() {
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold">Módulo en desarrollo</h1>
-    </div>
+    <main>
+      <h1>Cotizaciones</h1>
+      <p>Módulo en desarrollo.</p>
+    </main>
   );
 }
