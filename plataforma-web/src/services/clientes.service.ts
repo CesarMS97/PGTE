@@ -5,15 +5,42 @@ import { prisma } from "@/lib/prisma";
 import { clienteSchema, ClienteInput } from "@/schemas/cliente.schema";
 
 // Obtiene todos los clientes registrados ordenados por fecha de creación.
+// Obtiene todos los clientes registrados ordenados por fecha de creación con sus inmuebles asociados.
 export async function obtenerClientes(empresaId: string) {
   try {
     const clientes = await prisma.clientes.findMany({
       where: { empresa_id: empresaId },
+      include: {
+        inmuebles: true, // <--- ¡Añade esto aquí!
+      },
       orderBy: { created_at: 'desc' },
     });
     return clientes;
   } catch (error) {
     console.error("Error al obtener clientes:", error);
+    return [];
+  }
+}
+
+/**
+ * Obtiene una lista reducida de clientes (id, nombre, email) para usar en componentes <select>
+ */
+export async function getClientesSelect(empresaId?: string) {
+  try {
+    const clientes = await prisma.clientes.findMany({
+      where: empresaId ? { empresa_id: empresaId } : undefined,
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+      },
+      orderBy: {
+        nombre: 'asc',
+      },
+    });
+    return clientes;
+  } catch (error) {
+    console.error("Error al obtener clientes para select:", error);
     return [];
   }
 }
@@ -74,6 +101,7 @@ export async function crearCliente(data: unknown) {
     }); 
     
     revalidatePath("/clientes");
+    revalidatePath("/dashboard/inmuebles/nueva");
 
     return { success: true, data: nuevoCliente, mensaje: "Cliente creado exitosamente." };
   } catch (error) {
@@ -120,6 +148,7 @@ export async function actualizarCliente(id: string, data: unknown) {
     revalidatePath(`/dashboard/clientes/${id}`);
     revalidatePath(`/dashboard/clientes/${id}/editar`);
     revalidatePath("/dashboard/clientes");
+    revalidatePath("/dashboard/inmuebles/nueva");
 
     return { success: true, data: clienteActualizado, mensaje: "Cliente actualizado exitosamente." };
   } catch (error) {
@@ -144,6 +173,7 @@ export async function eliminarCliente(id: string) {
     await prisma.clientes.delete({ where: { id } });
 
     revalidatePath("/clientes");
+    revalidatePath("/dashboard/inmuebles/nueva");
     return { success: true, mensaje: "Cliente eliminado exitosamente." };
   } catch (error) {
     console.error("Error al eliminar cliente:", error);

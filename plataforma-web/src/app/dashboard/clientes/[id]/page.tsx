@@ -1,6 +1,7 @@
 import { obtenerClientePorId } from "@/services/clientes.service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DeleteClienteButton } from "@/components/clientes/DeleteClienteButton";
 
 interface ClienteDetallePageProps {
   params: Promise<{ id: string }>;
@@ -46,6 +47,9 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
           >
             Editar datos
           </Link>
+          
+          {/* Botón de eliminación integrado de forma segura */}
+          <DeleteClienteButton id={cliente.id} />
         </div>
       </div>
 
@@ -81,20 +85,20 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
             <h2 className="text-xl font-bold text-gray-900">Viviendas Asociadas</h2>
             <p className="text-xs text-gray-500 mt-0.5">Inmuebles registrados bajo la tutela de este cliente.</p>
           </div>
-          {/* Futuro botón para asociar o crear una vivienda nueva para este cliente */}
-          <button 
-            disabled
-            className="bg-blue-600/50 text-white font-medium px-4 py-2 rounded-xl text-sm cursor-not-allowed"
-            title="Próximamente módulo de viviendas"
+          
+          {/* Botón funcional para registrar un nuevo inmueble */}
+          <Link 
+            href="/dashboard/inmuebles/nuevo"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition-colors flex items-center gap-1.5"
           >
-            + Nueva vivienda
-          </button>
+            + Nuevo inmueble
+          </Link>
         </div>
 
         {(!cliente.inmuebles || cliente.inmuebles.length === 0) ? (
           <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-xl">
             <p className="text-sm text-gray-500 mb-1">Este cliente no tiene viviendas asociadas todavía.</p>
-            <p className="text-xs text-gray-400">Podrás agregarlas cuando implementemos el Módulo de Viviendas.</p>
+            <p className="text-xs text-gray-400">Comienza registrando la primera propiedad desde el botón superior.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -104,10 +108,14 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
                   <p className="font-semibold text-gray-800">{inmueble.direccion}</p>
                   <p className="text-xs text-gray-500">Comuna: {inmueble.comuna || "No especificada"}</p>
                 </div>
-                {/* Enlace al detalle de la vivienda en el futuro */}
-                <span className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-lg font-medium">
+                
+                {/* Enlace al detalle del inmueble */}
+                <Link
+                  href={`/dashboard/inmuebles/${inmueble.id}`}
+                  className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors"
+                >
                   Ver inmueble
-                </span>
+                </Link>
               </div>
             ))}
           </div>

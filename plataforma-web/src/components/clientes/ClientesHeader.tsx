@@ -1,21 +1,27 @@
-import ClientModalButton from "@/components/clientes/ClientModalButton";
+import Link from 'next/link';
 
 interface ClientesHeaderProps {
-  empresaNombre: string;
-  empresaId: string;
+  empresaNombre?: string;
+  empresaId?: string;
 }
 
-export default function ClientesHeader({ empresaNombre, empresaId }: ClientesHeaderProps) {
+export default function ClientesHeader({ empresaNombre }: ClientesHeaderProps) {
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Módulo de Clientes</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Empresa activa: <span className="font-semibold text-gray-700">{empresaNombre}</span>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Clientes
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {empresaNombre ? `Gestión de clientes asociados a ${empresaNombre}` : 'Gestión y administración de clientes.'}
         </p>
       </div>
-
-      <ClientModalButton empresaId={empresaId} />
+      <Link
+        href="/dashboard/clientes/nuevo"
+        className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-sm hover:shadow transition-all duration-200 active:scale-[0.98]"
+      >
+        + Registrar Cliente
+      </Link>
     </div>
   );
 }
