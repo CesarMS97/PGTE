@@ -10,6 +10,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-dashboard-bg: #f8fafc; /* Color personalidsado para el dashboard*/
 }
 
 @media (prefers-color-scheme: dark) {
