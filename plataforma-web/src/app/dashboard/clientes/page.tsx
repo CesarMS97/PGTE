@@ -1,31 +1,33 @@
-
 import { Suspense } from "react";
-import { prisma } from "@/lib/prisma";
+import { connection } from "next/server";
 import { obtenerClientes } from "@/services/clientes.service";
+import { obtenerEmpresaDelUsuarioActual } from "@/services/auth.service"; // <--- Importamos la función que creamos
 
 import ClientesHeader from "@/components/clientes/ClientesHeader";
 import ClientesTable from "@/components/clientes/ClientesTable";
 import ClientesEmptyState from "@/components/clientes/ClientesEmptyState";
 import { StatsCard } from "@/components/ui/StatsCard";
 
-// Componente que realiza las consultas a la base de datos
 async function ClientesContent() {
-  const empresa = await prisma.empresas.findFirst();
+  await connection();
+
+  // 1. Obtenemos la empresa del técnico logueado mediante su perfil
+  const empresa = await obtenerEmpresaDelUsuarioActual();
 
   if (!empresa) {
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-bold text-red-600">
-          Sin empresa registrada
+          Sin empresa asignada
         </h1>
         <p className="text-gray-600 mt-2">
-          Registra una empresa en la base de datos para
-          comenzar a gestionar clientes.
+          Tu usuario actual no tiene un perfil vinculado a ninguna empresa en la base de datos.
         </p>
       </div>
     );
   }
 
+  // 2. Consultamos SOLO los clientes de TU empresa
   const clientes = await obtenerClientes(empresa.id);
 
   return (
@@ -48,7 +50,7 @@ async function ClientesContent() {
             label="Total Inmuebles"
             value={
               clientes.filter(
-                (c) =>
+                (c: any) =>
                   c.inmuebles &&
                   c.inmuebles.length > 0
               ).length
