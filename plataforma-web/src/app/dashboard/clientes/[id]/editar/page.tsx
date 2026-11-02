@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ClienteForm } from '@/components/clientes/ClientForm';
 
-export default async function EditarClientePage({ params }: { params: { id: string } }) {
+export default function EditarClientePage() {
   // Aquí puedes buscar el cliente real por ID en tu base de datos si lo requieres, ej:
   // const cliente = await getClienteById(params.id);
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { createInmueble, updateInmueble } from '@/services/inmuebles.service';
+import type { Prisma } from "@prisma/client";
 import Link from 'next/link';
 
 interface ClienteOption {
@@ -9,9 +10,24 @@ interface ClienteOption {
   email: string | null;
 }
 
+interface InmuebleData {
+  id: string;
+  cliente_id: string;
+  nombre_referencia?: string | null;
+  tipo_uso?: string | null;
+  direccion?: string | null;
+  comuna?: string | null;
+  region?: string | null;
+  material_construccion?: string | null;
+  superficie_m2?: Prisma.Decimal | number | string | null;
+  antiguedad_anios?: number | null;
+  activo?: boolean | null;
+  observaciones?: string | null;
+}
+
 interface InmuebleFormProps {
   clientes: ClienteOption[];
-  inmueble?: any; // Si existe, estamos editando
+  inmueble?: InmuebleData | null;
 }
 
 export function InmuebleForm({ clientes, inmueble }: InmuebleFormProps) {
@@ -147,7 +163,7 @@ export function InmuebleForm({ clientes, inmueble }: InmuebleFormProps) {
             step="0.01"
             id="superficie_m2"
             name="superficie_m2"
-            defaultValue={inmueble?.superficie_m2 || ''}
+            defaultValue={inmueble?.superficie_m2?.toString() ?? ""}
             placeholder="Ej: 120.50"
             className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
