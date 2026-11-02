@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { clienteSchema, ClienteInput } from "@/schemas/cliente.schema";
+import { clienteSchema} from "@/schemas/cliente.schema";
 
 // Obtiene todos los clientes registrados ordenados por fecha de creación.
 // Obtiene todos los clientes registrados ordenados por fecha de creación con sus inmuebles asociados.
