@@ -1,4 +1,3 @@
-
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
@@ -6,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+
+// Requerido en Next.js 16 para layouts dinámicos con redirecciones de sesión
+export const instant = false;
 
 async function AuthGuard({
   children,

@@ -1,16 +1,34 @@
-import Link from 'next/link';
-import { ClienteForm } from '@/components/clientes/ClientForm';
+import { obtenerClientePorId } from "@/services/clientes.service";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ClienteForm } from "@/components/clientes/ClientForm";
+import { connection } from "next/server";
 
-export default function EditarClientePage() {
-  // Aquí puedes buscar el cliente real por ID en tu base de datos si lo requieres, ej:
-  // const cliente = await getClienteById(params.id);
+// Configuración requerida en Next.js 16 para rutas dinámicas con llamadas a servidor
+export const instant = false;
 
-  const clienteEjemplo = {
-    nombre: "Constructora del norte",
-    rut: "78699566-K",
-    telefono: "+56985697542",
-    email: "constructoradelnorte@gmail.com",
-    observaciones: "instalación de cableado en oficinas nuevas."
+interface EditarClientePageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function EditarClientePage({ params }: EditarClientePageProps) {
+  await connection();
+  const { id } = await params;
+
+  // Obtenemos el cliente real desde la base de datos
+  const clienteRaw = await obtenerClientePorId(id);
+
+  if (!clienteRaw) {
+    notFound();
+  }
+
+  // Preparamos los datos limpios para el formulario
+  const clienteData = {
+    nombre: clienteRaw.nombre,
+    rut: clienteRaw.rut ?? undefined,
+    telefono: clienteRaw.telefono ?? undefined,
+    email: clienteRaw.email ?? undefined,
+    observaciones: clienteRaw.observaciones ?? undefined,
   };
 
   return (
@@ -30,7 +48,12 @@ export default function EditarClientePage() {
         </p>
       </div>
 
-      <ClienteForm initialData={clienteEjemplo} isEditing={true} />
+      {/* Pasamos los datos y el id por separado */}
+      <ClienteForm 
+        initialData={clienteData} 
+        clienteId={clienteRaw.id} 
+        isEditing={true} 
+      />
     </div>
   );
 }

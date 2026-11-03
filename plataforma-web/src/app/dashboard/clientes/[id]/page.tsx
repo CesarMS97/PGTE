@@ -2,12 +2,18 @@ import { obtenerClientePorId } from "@/services/clientes.service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteClienteButton } from "@/components/clientes/DeleteClienteButton";
+import { connection } from "next/server";
+
+// Configuración requerida en Next.js 16 para rutas dinámicas con llamadas a servidor
+export const instant = false;
 
 interface ClienteDetallePageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function ClienteDetallePage({ params }: ClienteDetallePageProps) {
+  await connection();
+
   const { id } = await params;
 
   // Obtenemos los datos del cliente incluyendo sus viviendas/inmuebles relacionados
@@ -16,6 +22,15 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
   if (!cliente) {
     notFound();
   }
+
+  // Formateo seguro de fecha
+  const fechaRegistro = cliente.created_at
+    ? new Date(cliente.created_at).toLocaleDateString('es-CL', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : 'Fecha no disponible';
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -35,7 +50,7 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
           <span className="text-xs font-semibold tracking-wider text-blue-600 uppercase">Ficha de Cliente</span>
           <h1 className="text-3xl font-bold text-gray-900 mt-1">{cliente.nombre}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Registrado el {new Date(cliente.created_at).toLocaleDateString()}
+            Registrado el {fechaRegistro}
           </p>
         </div>
 

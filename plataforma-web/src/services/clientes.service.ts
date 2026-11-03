@@ -2,16 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { clienteSchema} from "@/schemas/cliente.schema";
+import { clienteSchema } from "@/schemas/cliente.schema";
+import { obtenerContextoUsuarioActual } from "@/services/auth.service";
 
-// Obtiene todos los clientes registrados ordenados por fecha de creación.
-// Obtiene todos los clientes registrados ordenados por fecha de creación con sus inmuebles asociados.
-export async function obtenerClientes(empresaId: string) {
+/**
+ * Obtiene todos los clientes registrados de la empresa actual o del técnico independiente actual con sus inmuebles asociados.
+ */
+export async function obtenerClientes(empresaId?: string, tecnicoId?: string) {
   try {
+    const whereCondition = empresaId 
+      ? { empresa_id: empresaId } 
+      : tecnicoId 
+      ? { tecnico_id: tecnicoId } 
+      : {};
+
     const clientes = await prisma.clientes.findMany({
-      where: { empresa_id: empresaId },
+      where: whereCondition,
       include: {
-        inmuebles: true, // <--- ¡Añade esto aquí!
+        inmuebles: true,
       },
       orderBy: { created_at: 'desc' },
     });
@@ -25,10 +33,27 @@ export async function obtenerClientes(empresaId: string) {
 /**
  * Obtiene una lista reducida de clientes (id, nombre, email) para usar en componentes <select>
  */
-export async function getClientesSelect(empresaId?: string) {
+export async function getClientesSelect(empresaId?: string, tecnicoId?: string) {
   try {
+    // Si no se pasan por parámetro, obtenemos el contexto del usuario actual
+    let targetEmpresaId = empresaId;
+    let targetTecnicoId = tecnicoId;
+
+    if (!targetEmpresaId && !targetTecnicoId) {
+      const contexto = await obtenerContextoUsuarioActual();
+      if (!contexto) return [];
+      targetEmpresaId = contexto.empresaId || undefined;
+      targetTecnicoId = contexto.esIndependiente ? contexto.perfilId : undefined;
+    }
+
+    const whereCondition = targetEmpresaId 
+      ? { empresa_id: targetEmpresaId } 
+      : targetTecnicoId 
+      ? { tecnico_id: targetTecnicoId } 
+      : undefined;
+
     const clientes = await prisma.clientes.findMany({
-      where: empresaId ? { empresa_id: empresaId } : undefined,
+      where: whereCondition,
       select: {
         id: true,
         nombre: true,
@@ -62,8 +87,27 @@ function normalizarRut(rut?: string | null): string | null {
 
 export async function crearCliente(data: unknown) {
   try {
-    // Valida la entrada usando el schema de Zod
-    const validacion = clienteSchema.safeParse(data);
+    // 1. Obtenemos el contexto dinámico del usuario autenticado actual
+    const contexto = await obtenerContextoUsuarioActual();
+    if (!contexto) {
+      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
+    }
+
+    const empresaId = contexto.empresaId || null;
+    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+
+    // 2. Normalizamos campos vacíos o undefined a null para que Zod no falle
+    const rawData = data as Record<string, any>;
+    const datosNormalizados = {
+      ...rawData,
+      rut: rawData.rut?.trim() || null,
+      telefono: rawData.telefono?.trim() || null,
+      email: rawData.email?.trim() || null,
+      observaciones: rawData.observaciones?.trim() || null,
+    };
+
+    // 3. Valida la entrada usando el schema de Zod
+    const validacion = clienteSchema.safeParse(datosNormalizados);
     if (!validacion.success) {
       const mensajeError = validacion.error.issues[0]?.message || "Datos inválidos.";
       return { success: false, error: mensajeError };
@@ -72,12 +116,12 @@ export async function crearCliente(data: unknown) {
     const datosValidados = validacion.data;
     const rutNormalizado = normalizarRut(datosValidados.rut);
 
-    // Control de duplicados por RUT y Empresa
+    // 4. Control de duplicados estrictamente dentro del ámbito del usuario (empresa o independiente)
     if (rutNormalizado) {
       const clienteExistente = await prisma.clientes.findFirst({
         where: { 
           rut: rutNormalizado,
-          empresa_id: datosValidados.empresa_id 
+          ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
         },
       });
 
@@ -89,22 +133,26 @@ export async function crearCliente(data: unknown) {
       }
     }
 
+    // 5. Crear el cliente inyectando dinámicamente empresa_id o tecnico_id según corresponda
     const nuevoCliente = await prisma.clientes.create({
       data: {
-        empresa_id: datosValidados.empresa_id,
+        ...(empresaId ? { empresa_id: empresaId } : {}),
+        ...(tecnicoId ? { tecnico_id: tecnicoId } : {}),
         nombre: datosValidados.nombre.trim(),
         rut: rutNormalizado, 
         telefono: datosValidados.telefono?.trim() || null,
         email: datosValidados.email?.trim() || null,
         observaciones: datosValidados.observaciones?.trim() || null,
-      },
+      } as any,
     }); 
     
     revalidatePath("/clientes");
+    revalidatePath("/dashboard/clientes");
     revalidatePath("/dashboard/inmuebles/nueva");
 
     return { success: true, data: nuevoCliente, mensaje: "Cliente creado exitosamente." };
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === "NEXT_REDIRECT") throw error;
     console.error("Error al crear cliente:", error);
     return { success: false, error: "No se pudo registrar el cliente en la base de datos." };
   }
@@ -112,8 +160,36 @@ export async function crearCliente(data: unknown) {
 
 export async function actualizarCliente(id: string, data: unknown) {
   try {
-    // Valida la entrada usando el schema de Zod
-    const validacion = clienteSchema.safeParse(data);
+    const contexto = await obtenerContextoUsuarioActual();
+    if (!contexto) {
+      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
+    }
+
+    const empresaId = contexto.empresaId || null;
+    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+
+    // Verificamos que el cliente pertenezca al ámbito del usuario actual
+    const clienteExistente = await prisma.clientes.findFirst({
+      where: { 
+        id, 
+        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
+      },
+    });
+
+    if (!clienteExistente) {
+      return { success: false, error: "Cliente no encontrado o no tienes permisos sobre él." };
+    }
+
+    const rawData = data as Record<string, any>;
+    const datosNormalizados = {
+      ...rawData,
+      rut: rawData.rut?.trim() || null,
+      telefono: rawData.telefono?.trim() || null,
+      email: rawData.email?.trim() || null,
+      observaciones: rawData.observaciones?.trim() || null,
+    };
+
+    const validacion = clienteSchema.safeParse(datosNormalizados);
     if (!validacion.success) {
       const mensajeError = validacion.error.issues[0]?.message || "Datos inválidos.";
       return { success: false, error: mensajeError };
@@ -124,7 +200,11 @@ export async function actualizarCliente(id: string, data: unknown) {
 
     if (rutNormalizado) {
       const duplicado = await prisma.clientes.findFirst({
-        where: { rut: rutNormalizado, NOT: { id } },
+        where: { 
+          rut: rutNormalizado, 
+          ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
+          NOT: { id } 
+        },
       });
       if (duplicado) {
         return {
@@ -151,7 +231,8 @@ export async function actualizarCliente(id: string, data: unknown) {
     revalidatePath("/dashboard/inmuebles/nueva");
 
     return { success: true, data: clienteActualizado, mensaje: "Cliente actualizado exitosamente." };
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === "NEXT_REDIRECT") throw error;
     console.error("Error al actualizar cliente:", error);
     return { success: false, error: "No se pudo actualizar el cliente." };
   }
@@ -159,6 +240,25 @@ export async function actualizarCliente(id: string, data: unknown) {
 
 export async function eliminarCliente(id: string) {
   try {
+    const contexto = await obtenerContextoUsuarioActual();
+    if (!contexto) {
+      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
+    }
+
+    const empresaId = contexto.empresaId || null;
+    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+
+    const clienteExistente = await prisma.clientes.findFirst({
+      where: { 
+        id, 
+        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
+      },
+    });
+
+    if (!clienteExistente) {
+      return { success: false, error: "Cliente no encontrado o no tienes permisos sobre él." };
+    }
+
     const cantidadInmuebles = await prisma.inmuebles.count({
       where: { cliente_id: id },
     });
@@ -172,10 +272,12 @@ export async function eliminarCliente(id: string) {
 
     await prisma.clientes.delete({ where: { id } });
 
-    revalidatePath("/clientes");
+    revalidatePath("/dashboard/clientes");
     revalidatePath("/dashboard/inmuebles/nueva");
+    
     return { success: true, mensaje: "Cliente eliminado exitosamente." };
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === "NEXT_REDIRECT") throw error;
     console.error("Error al eliminar cliente:", error);
     return { success: false, error: "No se pudo eliminar el cliente." };
   }
@@ -183,12 +285,21 @@ export async function eliminarCliente(id: string) {
 
 export async function obtenerClientePorId(id: string) {
   try {
-    return await prisma.clientes.findUnique({
-      where: { id },
+    const contexto = await obtenerContextoUsuarioActual();
+    if (!contexto) return null;
+
+    const empresaId = contexto.empresaId || null;
+    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+
+    return await prisma.clientes.findFirst({
+      where: { 
+        id, 
+        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
+      },
       include: { inmuebles: { orderBy: { created_at: "desc" } } },
     });
   } catch (error) {
     console.error("Error al obtener el cliente:", error);
     return null;
   }
-}
+} 

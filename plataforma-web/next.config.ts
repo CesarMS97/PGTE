@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Permitir acceso desde la red local durante desarrollo
-  allowedDevOrigins: ["192.168.1.3"],
+  allowedDevOrigins: ["192.168.1.3","10.31.54.235"],
 
   // Configuración de Next.js
   cacheComponents: true,
