@@ -1,14 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
-export async function obtenerEmpresaDelUsuarioActual() {
+export async function obtenerContextoUsuarioActual() {
   try {
     const supabase = await createClient();
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) return null;
 
-    // 1. Intentamos buscar tu perfil vinculado
+    // 1. Buscamos el perfil del usuario actual en la base de datos
     const perfil = await prisma.perfiles.findUnique({
       where: { id: user.id },
       include: {
@@ -16,18 +16,23 @@ export async function obtenerEmpresaDelUsuarioActual() {
       },
     });
 
-    if (perfil?.empresas) {
-      return perfil.empresas;
+    if (!perfil) {
+      return null;
     }
 
-    // 2. RESPALDO TEMPORAL: Si aún no tienes perfil creado en la BD,
-    // devolvemos la primera empresa para que no se bloquee tu pantalla.
-    const empresaDefault = await prisma.empresas.findFirst();
-    return empresaDefault || null;
+    // 2. Retornamos el contexto estructurado:
+    // Si tiene empresa, actúa bajo empresa. Si no, es un técnico independiente.
+    return {
+      usuarioId: user.id,
+      email: user.email,
+      perfilId: perfil.id,
+      esIndependiente: !perfil.empresa_id,
+      empresaId: perfil.empresa_id || null,
+      empresa: perfil.empresas || null,
+    };
 
   } catch (error) {
-    console.error("Error al obtener la empresa del usuario:", error);
-    // Fallback de emergencia
-    return await prisma.empresas.findFirst();
+    console.error("Error al obtener el contexto del usuario:", error);
+    return null;
   }
 }

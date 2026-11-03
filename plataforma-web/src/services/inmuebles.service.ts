@@ -3,10 +3,24 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { obtenerContextoUsuarioActual } from '@/services/auth.service';
 
 export async function getInmuebles() {
   try {
+    const contexto = await obtenerContextoUsuarioActual();
+    if (!contexto) return [];
+
+    const targetEmpresaId = contexto.empresaId || undefined;
+    const targetTecnicoId = contexto.esIndependiente ? contexto.perfilId : undefined;
+
+    const whereCondition = targetEmpresaId 
+      ? { clientes: { empresa_id: targetEmpresaId } } 
+      : targetTecnicoId 
+      ? { clientes: { tecnico_id: targetTecnicoId } } 
+      : undefined;
+
     const inmuebles = await prisma.inmuebles.findMany({
+      where: whereCondition,
       include: {
         clientes: true,
       },
@@ -118,12 +132,13 @@ export async function updateInmueble(id: string, formData: FormData) {
 
   revalidatePath('/dashboard/inmuebles');
   revalidatePath(`/dashboard/inmuebles/${id}`);
-  redirect('/dashboard/inmuebles');
+  
+  // Redirige de vuelta al detalle del inmueble editado
+  redirect(`/dashboard/inmuebles/${id}`);
 }
 
 export async function deleteInmueble(id: string) {
   try {
-    // Validar si tiene proyectos asociados antes de eliminar
     const cantidadProyectos = await prisma.proyectos.count({
       where: { inmueble_id: id },
     });

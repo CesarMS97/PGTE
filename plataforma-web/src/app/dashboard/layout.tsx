@@ -1,15 +1,19 @@
-import { Suspense, ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardSidebar } from '@/components/dashboard/Sidebar';
+
+import { DashboardSidebar } from "@/components/dashboard/Sidebar";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+
+// Requerido en Next.js 16 para layouts dinámicos con redirecciones de sesión
+export const instant = false;
 
 async function AuthGuard({
   children,
 }: {
   children: ReactNode;
 }) {
-  // Ejecutar la autenticación durante la solicitud
   await connection();
 
   const supabase = await createClient();
@@ -24,14 +28,21 @@ async function AuthGuard({
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans antialiased text-slate-900">
-      {/* Menú de navegación lateral fijo */}
-      <DashboardSidebar />
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900 antialiased">
 
-      {/* Contenido principal de cada módulo */}
-      <main className="flex-1 p-8 overflow-y-auto">
-        {children}
-      </main>
+      {/* Header superior */}
+      <DashboardHeader email={user.email} />
+
+      {/* Sidebar y contenido */}
+      <div className="flex flex-1">
+
+        <DashboardSidebar />
+
+        <main className="min-w-0 flex-1 overflow-x-hidden">
+          {children}
+        </main>
+
+      </div>
     </div>
   );
 }
@@ -42,7 +53,15 @@ export default function DashboardLayout({
   children: ReactNode;
 }) {
   return (
-    <Suspense fallback={<p>Verificando sesión...</p>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <p className="text-sm text-slate-500">
+            Verificando sesión...
+          </p>
+        </div>
+      }
+    >
       <AuthGuard>{children}</AuthGuard>
     </Suspense>
   );

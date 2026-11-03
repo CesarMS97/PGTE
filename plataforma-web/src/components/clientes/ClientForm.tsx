@@ -7,17 +7,17 @@ import { crearCliente, actualizarCliente } from '@/services/clientes.service';
 
 interface ClienteFormProps {
   initialData?: {
-    id?: string;
     nombre: string;
     rut?: string;
     telefono?: string;
     email?: string;
     observaciones?: string;
   };
+  clienteId?: string; // ID recibido por separado para asegurar la edición exacta
   isEditing?: boolean;
 }
 
-export function ClienteForm({ initialData, isEditing = false }: ClienteFormProps) {
+export function ClienteForm({ initialData, clienteId, isEditing = false }: ClienteFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -31,7 +31,7 @@ export function ClienteForm({ initialData, isEditing = false }: ClienteFormProps
     observaciones: initialData?.observaciones || '',
   });
 
-  // Asegura que el formulario se reinicie o cargue los datos frescos al montar/cambiar
+  // Asegura que el formulario cargue los datos frescos al cambiar de cliente
   useEffect(() => {
     setFormData({
       nombre: initialData?.nombre || '',
@@ -50,8 +50,9 @@ export function ClienteForm({ initialData, isEditing = false }: ClienteFormProps
       try {
         let resultado;
         
-        if (isEditing && initialData?.id) {
-          resultado = await actualizarCliente(initialData.id, formData);
+        // Si estamos editando y tenemos el ID, llamamos a actualizarCliente
+        if (isEditing && clienteId) {
+          resultado = await actualizarCliente(clienteId, formData);
         } else {
           resultado = await crearCliente(formData);
         }
@@ -61,7 +62,6 @@ export function ClienteForm({ initialData, isEditing = false }: ClienteFormProps
           return;
         }
 
-        // Limpiamos el formulario explícitamente y redirigimos
         formRef.current?.reset();
         setFormData({ nombre: '', rut: '', telefono: '', email: '', observaciones: '' });
         
