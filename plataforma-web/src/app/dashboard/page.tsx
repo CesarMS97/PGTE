@@ -14,7 +14,7 @@ import {
 const stats = [
   { label: "Clientes", value: "12", icon: Users },
   { label: "Viviendas", value: "8", icon: House },
-  { label: "Visitas pendientes", value: "3", icon: ClipboardList },
+  { label: "Levantamientos pendientes", value: "3", icon: ClipboardList },
   { label: "Cotizaciones", value: "5", icon: FileText },
 ];
 
