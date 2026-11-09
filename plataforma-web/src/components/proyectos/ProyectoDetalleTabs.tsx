@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { deleteProyecto } from '@/services/proyectos.service';
 import { PrioridadBadge, EstadoBadge } from '@/components/proyectos/ProyectoBadges';
 import { VisitaFormModal } from '@/components/proyectos/VisitaFormModal';
-import { LevantamientoFormModal } from '@/components/proyectos/LevantamientoFormModal';
 import { 
   Building2, 
   User, 
@@ -20,10 +19,25 @@ import {
   MapPin,
   Phone,
   Mail,
-  Trash2
+  Trash2,
+  ArrowRight
 } from 'lucide-react';
 
-// Helper blindado para formatear fechas extrayendo directamente los componentes UTC (evita desfases locales/servidor)
+function formatearFechaHoraChile(fecha: string | Date | null | undefined): string {
+  if (!fecha) return 'N/A';
+  const d = new Date(fecha);
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  const hours = String(d.getUTCHours()).padStart(2, '0');
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+
+  if (hours !== '00' || minutes !== '00') {
+    return `${day}-${month}-${year} ${hours}:${minutes} hrs`;
+  }
+  return `${day}-${month}-${year}`;
+}
+
 function formatearFechaChile(fecha: string | Date | null | undefined): string {
   if (!fecha) return 'N/A';
   const d = new Date(fecha);
@@ -41,7 +55,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'general' | 'visitas' | 'levantamientos'>('general');
   const [isVisitaModalOpen, setIsVisitaModalOpen] = useState(false);
-  const [isLevantamientoModalOpen, setIsLevantamientoModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const inmueble = proyecto.inmuebles;
@@ -49,15 +62,12 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
   const tecnicoProyecto = proyecto.perfiles;
   const visitas = proyecto.visitas_tecnicas || [];
   
-  // Levantamientos extraídos de las visitas
   const levantamientos = visitas
     .map((v: any) => v.levantamientos ? { ...v.levantamientos, visitaMotivo: v.motivo, visitaFecha: v.fecha_programada } : null)
     .filter(Boolean);
 
-  // Fecha real de la solicitud específica de este proyecto
   const fechaRealProyecto = proyecto.fecha_solicitud || proyecto.created_at;
 
-  // Función para manejar la eliminación del proyecto
   const handleDelete = async () => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este proyecto? Esta acción no se puede deshacer.')) {
       return;
@@ -102,7 +112,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
               📅 Solicitado: {formatearFechaChile(fechaRealProyecto)}
             </span>
 
-            {/* Botón para eliminar proyecto */}
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -208,8 +217,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
         {/* PESTAÑA GENERAL */}
         {activeTab === 'general' && (
           <div className="space-y-6">
-            
-            {/* Tarjetas de Métricas */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-gradient-to-br from-indigo-50/50 to-white p-4 rounded-xl border border-indigo-100">
                 <div className="flex items-center justify-between">
@@ -241,7 +248,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
               </div>
             </div>
 
-            {/* Bloque de Descripción y Cronograma */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
               <div className="lg:col-span-2 space-y-4">
                 <div className="bg-slate-50 p-5 rounded-xl border border-slate-200/80">
@@ -278,7 +284,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
                 )}
               </div>
 
-              {/* Panel Lateral de Cronograma */}
               <div className="bg-slate-50 p-5 rounded-xl border border-slate-200/80 space-y-4">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-indigo-600" />
@@ -309,7 +314,6 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
                 </div>
               </div>
             </div>
-
           </div>
         )}
 
@@ -339,7 +343,7 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
                       <div className="flex items-center gap-4 text-xs text-slate-500 mt-1.5">
                         <span className="flex items-center gap-1 font-medium">
                           <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                          {formatearFechaChile(visita.fecha_programada)}
+                          {formatearFechaHoraChile(visita.fecha_programada)}
                         </span>
                         <span className="bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-0.5 rounded-full text-[11px] capitalize border border-indigo-100">
                           {visita.estado || 'programada'}
@@ -372,71 +376,70 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
                 <h3 className="text-base font-semibold text-slate-900">Levantamientos Eléctricos Técnicos</h3>
                 <p className="text-xs text-slate-500">Parámetros eléctricos reales ingresados en terreno.</p>
               </div>
-              <button
-                onClick={() => setIsLevantamientoModalOpen(true)}
-                className="inline-flex items-center gap-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3.5 py-2 rounded-lg transition-colors shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Nuevo Levantamiento
-              </button>
             </div>
 
-            {levantamientos.length > 0 ? (
+            {visitas.length > 0 ? (
               <div className="grid grid-cols-1 gap-4 mt-4">
-                {levantamientos.map((lev: any) => (
-                  <div key={lev.id} className="p-5 rounded-xl border border-slate-200 bg-white shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-100 gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
-                          <Zap className="w-5 h-5" />
+                {visitas.map((visita: any) => {
+                  const lev = visita.levantamientos;
+                  return (
+                    <div key={visita.id} className="p-5 rounded-xl border border-slate-200 bg-white shadow-xs space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-100 gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
+                            <Zap className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-base">
+                              {lev?.tipo_instalacion || visita.motivo || 'Inspección de Terreno'}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Visita: <span className="font-medium text-slate-700">{formatearFechaHoraChile(visita.fecha_programada)}</span> • Estado: <span className="uppercase font-semibold text-indigo-600">{visita.estado}</span>
+                            </p>
+                          </div>
                         </div>
+
                         <div>
-                          <h4 className="font-bold text-slate-900 text-base">{lev.tipo_instalacion || 'Instalación Eléctrica'}</h4>
-                          <p className="text-xs text-slate-500">Asociado a visita: <span className="font-medium text-slate-700">{lev.visitaMotivo || 'Visita técnica'}</span> ({formatearFechaChile(lev.visitaFecha)})</p>
+                          <a
+                            href={`/dashboard/levantamientos/nuevo?visitaId=${visita.id}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors shadow-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            {lev ? 'Editar Levantamiento' : 'Iniciar Levantamiento'}
+                            <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                          </a>
                         </div>
                       </div>
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 ${lev.puesta_tierra ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                        {lev.puesta_tierra ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                        {lev.puesta_tierra ? 'Con Puesta a Tierra' : 'Sin Puesta a Tierra'}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs">
-                      <div>
-                        <span className="text-slate-400 font-medium block">Tipo Empalme</span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">{lev.tipo_empalme || 'No especificado'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 font-medium block">Tensión Nominal</span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">{lev.tension_nominal_v ? `${lev.tension_nominal_v} V` : 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 font-medium block">Potencia Contratada</span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">{lev.potencia_contratada_kw ? `${lev.potencia_contratada_kw} kW` : 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 font-medium block">Resistencia Tierra</span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">{lev.resistencia_tierra_ohm ? `${lev.resistencia_tierra_ohm} Ω` : 'N/A'}</span>
-                      </div>
+                      {lev && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs">
+                          <div>
+                            <span className="text-slate-400 font-medium block">Tipo Empalme</span>
+                            <span className="font-bold text-slate-800 mt-0.5 block">{lev.tipo_empalme || 'No especificado'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium block">Tensión Nominal</span>
+                            <span className="font-bold text-slate-800 mt-0.5 block">{lev.tension_nominal_v ? `${lev.tension_nominal_v} V` : 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium block">Potencia Contratada</span>
+                            <span className="font-bold text-slate-800 mt-0.5 block">{lev.potencia_contratada_kw ? `${lev.potencia_contratada_kw} kW` : 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium block">Resistencia Tierra</span>
+                            <span className="font-bold text-slate-800 mt-0.5 block">{lev.resistencia_tierra_ohm ? `${lev.resistencia_tierra_ohm} Ω` : 'N/A'}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-
-                    {lev.observaciones && (
-                      <p className="text-xs text-slate-600 bg-slate-50/60 p-3 rounded-lg border border-slate-100 leading-relaxed">
-                        <span className="font-bold text-slate-700">Observaciones Técnicas:</span> {lev.observaciones}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="py-12 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <ClipboardCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-700 font-medium">No hay levantamientos técnicos registrados todavía.</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {visitas.length === 0 
-                    ? '⚠️ Debe agendar una visita técnica antes de poder registrar parámetros eléctricos.' 
-                    : 'Haz clic en "Nuevo Levantamiento" para guardar los datos de terreno.'}
-                </p>
+                <p className="text-sm text-slate-700 font-medium">No hay visitas técnicas registradas en este proyecto.</p>
+                <p className="text-xs text-slate-400 mt-1">⚠️ Debe agendar una visita técnica en la pestaña anterior para poder iniciar su levantamiento.</p>
               </div>
             )}
           </div>
@@ -444,18 +447,10 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
 
       </div>
 
-      {/* Componentes Modales */}
       <VisitaFormModal
         isOpen={isVisitaModalOpen}
         onClose={() => setIsVisitaModalOpen(false)}
         proyectoId={proyecto.id}
-      />
-
-      <LevantamientoFormModal
-        isOpen={isLevantamientoModalOpen}
-        onClose={() => setIsLevantamientoModalOpen(false)}
-        proyectoId={proyecto.id}
-        visitas={visitas}
       />
 
     </div>

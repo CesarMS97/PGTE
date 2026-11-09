@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Calendar, AlignLeft, FileText, CheckCircle } from 'lucide-react';
+import { X, Calendar, AlignLeft } from 'lucide-react';
 import { createVisitaTecnica } from '@/services/proyectos.service';
 
 interface VisitaFormModalProps {
@@ -24,13 +24,13 @@ export function VisitaFormModal({ isOpen, onClose, proyectoId }: VisitaFormModal
     const formElement = e.currentTarget;
     const formData = new FormData(formElement);
     formData.append('proyecto_id', proyectoId);
+    
+    // Forzamos el estado inicial fijo como 'programada' por regla de negocio
+    formData.set('estado', 'programada');
 
-    // Corregimos el desfase de la fecha de visita tomando el valor local string (YYYY-MM-DD)
-    // y añadiéndole la hora local para que Prisma lo interprete correctamente en Chile (UTC-3)
-    const fechaInput = formData.get('fecha_programada') as string;
-    if (fechaInput) {
-      const fechaLocalCorregida = `${fechaInput}T00:00:00`;
-      formData.set('fecha_programada', fechaLocalCorregida);
+    const fechaHoraInput = formData.get('fecha_programada') as string;
+    if (fechaHoraInput) {
+      formData.set('fecha_programada', `${fechaHoraInput}:00`);
     }
 
     try {
@@ -59,6 +59,7 @@ export function VisitaFormModal({ isOpen, onClose, proyectoId }: VisitaFormModal
           </h2>
           <button
             onClick={onClose}
+            type="button"
             className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-200/50 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -72,49 +73,34 @@ export function VisitaFormModal({ isOpen, onClose, proyectoId }: VisitaFormModal
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Fecha Programada *
-              </label>
-              <div className="relative">
-                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="date"
-                  name="fecha_programada"
-                  required
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800"
-                />
-              </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Fecha y Hora Programada <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="datetime-local"
+                name="fecha_programada"
+                required
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 bg-white"
+              />
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Estado Inicial
-              </label>
-              <select
-                name="estado"
-                defaultValue="programada"
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 bg-white"
-              >
-                <option value="programada">Programada</option>
-                <option value="en_curso">En Curso</option>
-                <option value="completada">Completada</option>
-              </select>
-            </div>
+            <p className="text-[11px] text-slate-400 mt-1">La visita se registrará automáticamente en estado programada.</p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Motivo / Objetivo
+              Motivo / Objetivo <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <AlignLeft className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
                 name="motivo"
+                required
                 placeholder="Ej: Inspección inicial de tableros"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 bg-white"
               />
             </div>
           </div>
@@ -127,7 +113,7 @@ export function VisitaFormModal({ isOpen, onClose, proyectoId }: VisitaFormModal
               name="observaciones"
               rows={3}
               placeholder="Notas o instrucciones adicionales para la visita..."
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 bg-white"
             />
           </div>
 

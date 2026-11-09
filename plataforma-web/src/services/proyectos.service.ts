@@ -256,4 +256,4 @@ export async function createLevantamiento(formData: FormData) {
     console.error('Error al crear levantamiento:', error);
     return { success: false, error: error.message || 'No se pudo guardar el levantamiento.' };
   }
-}
+} 
