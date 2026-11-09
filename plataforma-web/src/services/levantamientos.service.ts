@@ -21,26 +21,18 @@ function parseDecimalValue(val?: string | number): number | null {
   return isNaN(parsed) ? null : parsed;
 }
 
-/**
- * Función recursiva universal para sanitizar objetos de Prisma (Convierte Decimals y BigInts a valores planos)
- */
 function sanitizeData(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'bigint') return obj.toString();
-  
-  // Si es un Decimal de Prisma (tiene la función toNumber)
   if (typeof obj === 'object' && typeof obj.toNumber === 'function') {
     return obj.toNumber();
   }
-
   if (obj instanceof Date) {
     return obj;
   }
-
   if (Array.isArray(obj)) {
     return obj.map(item => sanitizeData(item));
   }
-
   if (typeof obj === 'object') {
     const clone: any = {};
     for (const key of Object.keys(obj)) {
@@ -48,13 +40,9 @@ function sanitizeData(obj: any): any {
     }
     return clone;
   }
-
   return obj;
 }
 
-/**
- * Server Action para el autoguardado en borrador (Upsert)
- */
 export async function autoguardarLevantamiento(data: GuardarLevantamientoInput) {
   try {
     if (!data.visitaId) {
@@ -98,9 +86,6 @@ export async function autoguardarLevantamiento(data: GuardarLevantamientoInput) 
   }
 }
 
-/**
- * Server Action para obtener un levantamiento por el ID de la visita
- */
 export async function obtenerLevantamientoPorVisita(visitaId: string) {
   try {
     const levantamiento = await prisma.levantamientos.findUnique({
@@ -113,15 +98,19 @@ export async function obtenerLevantamientoPorVisita(visitaId: string) {
   }
 }
 
-/**
- * Server Action para finalizar definitivamente el levantamiento
- */
 export async function finalizarLevantamiento(data: GuardarLevantamientoInput) {
   try {
     const res = await autoguardarLevantamiento(data);
     if (!res.success || !res.data) return res;
 
+    // Actualiza la visita técnica a completada automáticamente
+    await prisma.visitas_tecnicas.update({
+      where: { id: data.visitaId },
+      data: { estado: 'completada' },
+    });
+
     revalidatePath('/dashboard/levantamientos');
+    revalidatePath('/dashboard');
     return { success: true, data: res.data };
   } catch (error) {
     console.error('Error en finalizarLevantamiento:', error);
@@ -129,9 +118,6 @@ export async function finalizarLevantamiento(data: GuardarLevantamientoInput) {
   }
 }
 
-/**
- * Obtiene las visitas técnicas programadas para el día de hoy del técnico autenticado
- */
 export async function obtenerVisitasDelDia() {
   try {
     const supabase = await createClient();
@@ -146,6 +132,7 @@ export async function obtenerVisitasDelDia() {
     const visitas = await prisma.visitas_tecnicas.findMany({
       where: {
         ...(user ? { tecnico_id: user.id } : {}),
+        estado: { not: 'completada' }, // Excluye las ya completadas del listado de pendientes
         fecha_programada: {
           gte: hoyInicio,
           lte: hoyFin,
@@ -171,9 +158,6 @@ export async function obtenerVisitasDelDia() {
   }
 }
 
-/**
- * Obtiene únicamente los clientes asociados al técnico o empresa autenticada
- */
 export async function obtenerClientesFiltro() {
   try {
     const supabase = await createClient();
@@ -207,9 +191,6 @@ export async function obtenerClientesFiltro() {
   }
 }
 
-/**
- * Obtiene los inmuebles de un cliente específico
- */
 export async function obtenerInmueblesPorCliente(clienteId: string) {
   try {
     const inmuebles = await prisma.inmuebles.findMany({
@@ -224,9 +205,6 @@ export async function obtenerInmueblesPorCliente(clienteId: string) {
   }
 }
 
-/**
- * Obtiene las visitas técnicas asociadas a los proyectos de un inmueble específico
- */
 export async function obtenerVisitasPorInmueble(inmuebleId: string) {
   try {
     const proyectos = await prisma.proyectos.findMany({
@@ -252,9 +230,6 @@ export async function obtenerVisitasPorInmueble(inmuebleId: string) {
   }
 }
 
-/**
- * Obtiene el historial general de todos los levantamientos registrados del técnico/empresa
- */
 export async function obtenerHistorialLevantamientos() {
   try {
     const supabase = await createClient();
