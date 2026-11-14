@@ -14,8 +14,7 @@ import {
   Clock3,
 } from "lucide-react";
 
-
-export const instant = false
+export const instant = false;
 
 export default async function DashboardPage() {
   await connection();
@@ -24,12 +23,16 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let tecnicoIdFiltro: string | undefined = undefined;
+  let empresaIdFiltro: string | undefined = undefined;
+
   if (user) {
     const perfil = await prisma.perfiles.findUnique({
       where: { id: user.id },
+      select: { id: true, empresa_id: true }
     });
     if (perfil) {
-      tecnicoIdFiltro = user.id;
+      tecnicoIdFiltro = perfil.id;
+      empresaIdFiltro = perfil.empresa_id || undefined;
     }
   }
 
@@ -39,10 +42,24 @@ export default async function DashboardPage() {
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
 
-  // Filtros condicionales basados en las relaciones de tu schema.prisma
-  const filtroClientes = tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {};
-  const filtroInmuebles = tecnicoIdFiltro ? { proyectos: { some: { tecnico_id: tecnicoIdFiltro } } } : {};
-  const filtroProyectoTecnico = tecnicoIdFiltro ? { proyectos: { tecnico_id: tecnicoIdFiltro } } : {};
+  // Filtros inteligentes que soportan tanto Técnicos Independientes como Cuentas de Empresa
+  const filtroClientes = empresaIdFiltro 
+    ? { empresa_id: empresaIdFiltro } 
+    : tecnicoIdFiltro 
+    ? { tecnico_id: tecnicoIdFiltro } 
+    : {};
+
+  const filtroInmuebles = empresaIdFiltro
+    ? { clientes: { empresa_id: empresaIdFiltro } }
+    : tecnicoIdFiltro
+    ? { proyectos: { some: { tecnico_id: tecnicoIdFiltro } } }
+    : {};
+
+  const filtroProyectoTecnico = empresaIdFiltro
+    ? { proyectos: { inmuebles: { clientes: { empresa_id: empresaIdFiltro } } } }
+    : tecnicoIdFiltro
+    ? { proyectos: { tecnico_id: tecnicoIdFiltro } }
+    : {};
 
   const [
     clientesCount,
@@ -52,7 +69,7 @@ export default async function DashboardPage() {
     visitasPendientes,
     ultimasCotizaciones,
   ] = await Promise.all([
-    // Clientes del técnico independiente actual
+    // Clientes (filtrados por empresa o técnico)
     prisma.clientes.count({
       where: {
         activo: true,
@@ -60,7 +77,7 @@ export default async function DashboardPage() {
       },
     }),
     
-    // Inmuebles asociados a los proyectos del técnico actual
+    // Inmuebles asociados
     prisma.inmuebles.count({
       where: {
         activo: true,
@@ -77,7 +94,7 @@ export default async function DashboardPage() {
       },
     }),
 
-    // Cotizaciones de los proyectos del técnico actual
+    // Cotizaciones aisladas
     prisma.cotizaciones.count({
       where: {
         ...filtroProyectoTecnico,
