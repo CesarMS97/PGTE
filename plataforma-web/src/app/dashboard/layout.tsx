@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import CalculadoraModal from "@/components/herramientas/CalculadoraModal";
 
 export const instant = false;
 
@@ -51,6 +52,9 @@ async function AuthGuard({
       email={user.email ?? ""}
     >
       {children}
+
+      {/* Calculadora flotante disponible en todo el dashboard */}
+      <CalculadoraModal />
     </DashboardShell>
   );
 }
