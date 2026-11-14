@@ -3,36 +3,33 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { obtenerContextoUsuarioActual } from '@/services/auth.service';
+import { filtroClientes } from '@/lib/tenant';
 
 export async function getProyectos() {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) return [];
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return [];
 
-    const targetEmpresaId = contexto.empresaId || undefined;
-    const targetTecnicoId = contexto.esIndependiente ? contexto.perfilId : undefined;
-
-    const whereCondition = targetEmpresaId 
-      ? { inmuebles: { clientes: { empresa_id: targetEmpresaId } } } 
-      : targetTecnicoId 
-      ? { inmuebles: { clientes: { tecnico_id: targetTecnicoId } } } 
-      : undefined;
-
-    const proyectos = await prisma.proyectos.findMany({
-      where: whereCondition,
-      include: {
+    return await prisma.proyectos.findMany({
+      where: { inmuebles: { clientes: filtroClientes(ctx) } },
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        titulo: true,
+        tipo_trabajo: true,
+        prioridad: true,
+        estado: true,
+        fecha_solicitud: true,
         inmuebles: {
-          include: {
-            clientes: true,
+          select: {
+            nombre_referencia: true,
+            direccion: true,
+            clientes: { select: { nombre: true } },
           },
         },
-        perfiles: true,
       },
-      orderBy: {
-        created_at: 'desc',
-      },
+      orderBy: { created_at: 'desc' },
     });
-    return proyectos;
   } catch (error) {
     console.error('Error al obtener los proyectos:', error);
     return [];
@@ -41,42 +38,110 @@ export async function getProyectos() {
 
 export async function getProyectoPorId(id: string) {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) return null;
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return null;
 
-    const proyecto = await prisma.proyectos.findUnique({
-      where: { id },
-      include: {
+    // Filtro de pertenencia dentro de la consulta + todo en un solo JOIN
+    const proyecto = await prisma.proyectos.findFirst({
+      where: { id, inmuebles: { clientes: filtroClientes(ctx) } },
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        titulo: true,
+        descripcion: true,
+        tipo_trabajo: true,
+        estado: true,
+        prioridad: true,
+        fecha_solicitud: true,
+        fecha_inicio: true,
+        fecha_termino: true,
+        created_at: true,
+        tecnico_id: true,
         inmuebles: {
-          include: {
-            clientes: true,
+          select: {
+            id: true,
+            direccion: true,
+            comuna: true,
+            nombre_referencia: true,
+            tipo_uso: true,
+            superficie_m2: true,
+            antiguedad_anios: true,
+            clientes: {
+              select: {
+                id: true,
+                nombre: true,
+                rut: true,
+                telefono: true,
+                email: true,
+              },
+            },
           },
         },
-        perfiles: true, 
+        perfiles: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+            rol: true,
+          },
+        },
         visitas_tecnicas: {
-          include: {
-            levantamientos: true,
+          select: {
+            id: true,
+            fecha_programada: true,
+            estado: true,
+            motivo: true,
+            observaciones: true,
+            levantamientos: {
+              select: {
+                id: true,
+                tipo_instalacion: true,
+                tension_nominal_v: true,
+                tipo_empalme: true,
+                potencia_contratada_kw: true,
+                puesta_tierra: true,
+                resistencia_tierra_ohm: true,
+                observaciones: true,
+              },
+            },
           },
-          orderBy: {
-            created_at: 'desc',
+          orderBy: { created_at: 'desc' },
+        },
+        cotizaciones: {
+          select: {
+            id: true,
+            numero: true,
+            total: true,
+            estado: true,
           },
         },
-        cotizaciones: true,
-        avances: true,
+        avances: {
+          select: {
+            id: true,
+            descripcion: true,
+            created_at: true,
+          },
+        },
       },
     });
 
     if (!proyecto) return null;
 
-    // BLINDAJE TÉCNICO: Si el proyecto tiene tecnico_id pero la relación no se cargó, 
-    // o si el proyecto es antiguo y no tiene tecnico_id pero el usuario actual es independiente, 
-    // asignamos el perfil correspondiente para que la UI lo muestre de inmediato.
+    // Proyectos antiguos sin técnico asignado: mostramos el perfil del usuario independiente
     if (!proyecto.perfiles) {
-      const perfilIdABuscar = proyecto.tecnico_id || (contexto.esIndependiente ? contexto.perfilId : null);
-      
+      const perfilIdABuscar = proyecto.tecnico_id || (ctx.esIndependiente ? ctx.perfilId : null);
+
       if (perfilIdABuscar) {
         const tecnicoAsociado = await prisma.perfiles.findUnique({
           where: { id: perfilIdABuscar },
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+            rol: true,
+          },
         });
         if (tecnicoAsociado) {
           (proyecto as any).perfiles = tecnicoAsociado;
@@ -93,7 +158,8 @@ export async function getProyectoPorId(id: string) {
 
 export async function createProyecto(formData: FormData) {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
 
     const inmueble_id = formData.get('inmueble_id') as string;
     const titulo = formData.get('titulo') as string;
@@ -106,15 +172,20 @@ export async function createProyecto(formData: FormData) {
       return { success: false, error: 'El inmueble y el título del proyecto son obligatorios.' };
     }
 
-    // Manteniendo la fecha exacta tal como la tenías funcionando
+    // El inmueble debe pertenecer a tu empresa / a ti
+    const inmuebleValido = await prisma.inmuebles.findFirst({
+      where: { id: inmueble_id, clientes: filtroClientes(ctx) },
+      select: { id: true },
+    });
+    if (!inmuebleValido) {
+      return { success: false, error: 'El inmueble seleccionado no existe o no tienes acceso.' };
+    }
+
     const fechaChileStr = new Date().toLocaleDateString('en-CA', {
       timeZone: 'America/Santiago',
     });
     const [anio, mes, dia] = fechaChileStr.split('-').map(Number);
     const fechaSolicitudLocal = new Date(Date.UTC(anio, mes - 1, dia, 12, 0, 0));
-
-    // Asignación segura del técnico de la sesión actual
-    const tecnicoIdAsignado = contexto?.perfilId || null;
 
     await prisma.proyectos.create({
       data: {
@@ -125,11 +196,12 @@ export async function createProyecto(formData: FormData) {
         prioridad,
         estado,
         fecha_solicitud: fechaSolicitudLocal,
-        tecnico_id: tecnicoIdAsignado,
+        tecnico_id: ctx.perfilId,
       },
     });
 
     revalidatePath('/dashboard/proyectos');
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
     console.error('Error al crear el proyecto:', error);
@@ -139,6 +211,9 @@ export async function createProyecto(formData: FormData) {
 
 export async function updateProyecto(id: string, formData: FormData) {
   try {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
+
     const inmueble_id = formData.get('inmueble_id') as string;
     const titulo = formData.get('titulo') as string;
     const descripcion = formData.get('descripcion') as string;
@@ -150,8 +225,16 @@ export async function updateProyecto(id: string, formData: FormData) {
       return { success: false, error: 'El inmueble y el título del proyecto son obligatorios.' };
     }
 
-    await prisma.proyectos.update({
-      where: { id },
+    const inmuebleValido = await prisma.inmuebles.findFirst({
+      where: { id: inmueble_id, clientes: filtroClientes(ctx) },
+      select: { id: true },
+    });
+    if (!inmuebleValido) {
+      return { success: false, error: 'El inmueble seleccionado no existe o no tienes acceso.' };
+    }
+
+    const { count } = await prisma.proyectos.updateMany({
+      where: { id, inmuebles: { clientes: filtroClientes(ctx) } },
       data: {
         inmueble_id,
         titulo,
@@ -159,8 +242,13 @@ export async function updateProyecto(id: string, formData: FormData) {
         tipo_trabajo: tipo_trabajo || null,
         prioridad,
         estado,
+        updated_at: new Date(),
       },
     });
+
+    if (count === 0) {
+      return { success: false, error: 'Proyecto no encontrado o sin permisos.' };
+    }
 
     revalidatePath('/dashboard/proyectos');
     revalidatePath(`/dashboard/proyectos/${id}`);
@@ -173,13 +261,27 @@ export async function updateProyecto(id: string, formData: FormData) {
 
 export async function deleteProyecto(id: string) {
   try {
-    await prisma.proyectos.delete({
-      where: { id },
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
+
+    const { count } = await prisma.proyectos.deleteMany({
+      where: { id, inmuebles: { clientes: filtroClientes(ctx) } },
     });
 
+    if (count === 0) {
+      return { success: false, error: 'Proyecto no encontrado o sin permisos.' };
+    }
+
     revalidatePath('/dashboard/proyectos');
+    revalidatePath('/dashboard');
     return { success: true, mensaje: 'Proyecto eliminado exitosamente.' };
   } catch (error: any) {
+    if (error?.code === 'P2003') {
+      return {
+        success: false,
+        error: 'No se puede eliminar: el proyecto tiene visitas, cotizaciones u otros registros asociados.',
+      };
+    }
     console.error('Error al eliminar el proyecto:', error);
     return { success: false, error: error.message || 'No se pudo eliminar el proyecto.' };
   }
@@ -187,8 +289,8 @@ export async function deleteProyecto(id: string) {
 
 export async function createVisitaTecnica(formData: FormData) {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto || !contexto.perfilId) {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) {
       return { success: false, error: 'No se pudo identificar el técnico actual.' };
     }
 
@@ -202,10 +304,18 @@ export async function createVisitaTecnica(formData: FormData) {
       return { success: false, error: 'El proyecto y la fecha programada son obligatorios.' };
     }
 
+    const proyectoValido = await prisma.proyectos.findFirst({
+      where: { id: proyecto_id, inmuebles: { clientes: filtroClientes(ctx) } },
+      select: { id: true },
+    });
+    if (!proyectoValido) {
+      return { success: false, error: 'Proyecto no encontrado o sin permisos.' };
+    }
+
     await prisma.visitas_tecnicas.create({
       data: {
         proyecto_id,
-        tecnico_id: contexto.perfilId,
+        tecnico_id: ctx.perfilId,
         fecha_programada: new Date(fecha_programada),
         motivo: motivo || null,
         observaciones: observaciones || null,
@@ -214,6 +324,7 @@ export async function createVisitaTecnica(formData: FormData) {
     });
 
     revalidatePath(`/dashboard/proyectos/${proyecto_id}`);
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
     console.error('Error al crear visita técnica:', error);
@@ -223,6 +334,9 @@ export async function createVisitaTecnica(formData: FormData) {
 
 export async function createLevantamiento(formData: FormData) {
   try {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
+
     const proyecto_id = formData.get('proyecto_id') as string;
     const visita_id = formData.get('visita_id') as string;
     const tipo_instalacion = formData.get('tipo_instalacion') as string;
@@ -235,6 +349,17 @@ export async function createLevantamiento(formData: FormData) {
 
     if (!visita_id) {
       return { success: false, error: 'Debe especificar la visita técnica asociada para el levantamiento.' };
+    }
+
+    const visitaValida = await prisma.visitas_tecnicas.findFirst({
+      where: {
+        id: visita_id,
+        proyectos: { inmuebles: { clientes: filtroClientes(ctx) } },
+      },
+      select: { id: true },
+    });
+    if (!visitaValida) {
+      return { success: false, error: 'Visita técnica no encontrada o sin permisos.' };
     }
 
     await prisma.levantamientos.create({
@@ -256,4 +381,4 @@ export async function createLevantamiento(formData: FormData) {
     console.error('Error al crear levantamiento:', error);
     return { success: false, error: error.message || 'No se pudo guardar el levantamiento.' };
   }
-} 
+}

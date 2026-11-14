@@ -14,7 +14,8 @@ import {
   Clock3,
 } from "lucide-react";
 
-export const instant = false;
+
+export const instant = false
 
 export default async function DashboardPage() {
   await connection();
@@ -38,7 +39,11 @@ export default async function DashboardPage() {
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
 
-  // Prisma .count() retorna un número directamente, se asigna sin { count: ... }
+  // Filtros condicionales basados en las relaciones de tu schema.prisma
+  const filtroClientes = tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {};
+  const filtroInmuebles = tecnicoIdFiltro ? { proyectos: { some: { tecnico_id: tecnicoIdFiltro } } } : {};
+  const filtroProyectoTecnico = tecnicoIdFiltro ? { proyectos: { tecnico_id: tecnicoIdFiltro } } : {};
+
   const [
     clientesCount,
     inmueblesCount,
@@ -47,9 +52,23 @@ export default async function DashboardPage() {
     visitasPendientes,
     ultimasCotizaciones,
   ] = await Promise.all([
-    prisma.clientes.count({ where: { activo: true } }),
-    prisma.inmuebles.count({ where: { activo: true } }),
+    // Clientes del técnico independiente actual
+    prisma.clientes.count({
+      where: {
+        activo: true,
+        ...filtroClientes,
+      },
+    }),
     
+    // Inmuebles asociados a los proyectos del técnico actual
+    prisma.inmuebles.count({
+      where: {
+        activo: true,
+        ...filtroInmuebles,
+      },
+    }),
+    
+    // Visitas técnicas pendientes del técnico actual
     prisma.visitas_tecnicas.count({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
@@ -57,8 +76,15 @@ export default async function DashboardPage() {
         fecha_programada: { lte: hoyFin },
       },
     }),
-    prisma.cotizaciones.count(),
+
+    // Cotizaciones de los proyectos del técnico actual
+    prisma.cotizaciones.count({
+      where: {
+        ...filtroProyectoTecnico,
+      },
+    }),
     
+    // Listado de visitas pendientes aisladas
     prisma.visitas_tecnicas.findMany({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
@@ -80,7 +106,11 @@ export default async function DashboardPage() {
       take: 5,
     }),
 
+    // Listado de cotizaciones recientes aisladas
     prisma.cotizaciones.findMany({
+      where: {
+        ...filtroProyectoTecnico,
+      },
       include: {
         proyectos: {
           include: {

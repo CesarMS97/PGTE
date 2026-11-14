@@ -1,305 +1,198 @@
 'use server';
 
-import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { clienteSchema } from "@/schemas/cliente.schema";
-import { obtenerContextoUsuarioActual } from "@/services/auth.service";
+import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+import { obtenerContextoUsuarioActual } from '@/services/auth.service';
+import { filtroClientes } from '@/lib/tenant';
+import { clienteSchema } from '@/schemas/cliente.schema';
 
-/**
- * Obtiene todos los clientes registrados de la empresa actual o del técnico independiente actual con sus inmuebles asociados.
- */
-export async function obtenerClientes(empresaId?: string, tecnicoId?: string) {
-  try {
-    const whereCondition = empresaId 
-      ? { empresa_id: empresaId } 
-      : tecnicoId 
-      ? { tecnico_id: tecnicoId } 
-      : {};
-
-    const clientes = await prisma.clientes.findMany({
-      where: whereCondition,
-      include: {
-        inmuebles: true,
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    return clientes;
-  } catch (error) {
-    console.error("Error al obtener clientes:", error);
-    return [];
+// Valida con el schema zod (RUT, teléfono, email) y limpia los datos.
+// Ignora cualquier campo extra (por ejemplo empresa_id enviado desde el navegador).
+function parsearCliente(data: Record<string, any>) {
+  const resultado = clienteSchema.safeParse(data);
+  if (!resultado.success) {
+    return {
+      ok: false as const,
+      error: resultado.error.issues[0]?.message ?? 'Datos del cliente no válidos.',
+    };
   }
+
+  const d = resultado.data;
+  const nombre = d.nombre.trim();
+  if (!nombre) {
+    return { ok: false as const, error: 'El nombre es obligatorio.' };
+  }
+
+  return {
+    ok: true as const,
+    data: {
+      nombre,
+      rut: d.rut || null,
+      telefono: d.telefono?.trim() || null,
+      email: d.email?.trim() || null,
+      observaciones: d.observaciones?.trim() || null,
+    },
+  };
 }
 
-/**
- * Obtiene una lista reducida de clientes (id, nombre, email) para usar en componentes <select>
- */
-export async function getClientesSelect(empresaId?: string, tecnicoId?: string) {
+export async function getClientes() {
   try {
-    // Si no se pasan por parámetro, obtenemos el contexto del usuario actual
-    let targetEmpresaId = empresaId;
-    let targetTecnicoId = tecnicoId;
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return [];
 
-    if (!targetEmpresaId && !targetTecnicoId) {
-      const contexto = await obtenerContextoUsuarioActual();
-      if (!contexto) return [];
-      targetEmpresaId = contexto.empresaId || undefined;
-      targetTecnicoId = contexto.esIndependiente ? contexto.perfilId : undefined;
-    }
-
-    const whereCondition = targetEmpresaId 
-      ? { empresa_id: targetEmpresaId } 
-      : targetTecnicoId 
-      ? { tecnico_id: targetTecnicoId } 
-      : undefined;
-
-    const clientes = await prisma.clientes.findMany({
-      where: whereCondition,
+    return await prisma.clientes.findMany({
+      where: filtroClientes(ctx),
       select: {
         id: true,
         nombre: true,
+        rut: true,
+        telefono: true,
         email: true,
+        activo: true,
+        created_at: true,
+        // Solo el conteo: el listado no necesita los inmuebles completos
+        _count: { select: { inmuebles: true } },
       },
-      orderBy: {
-        nombre: 'asc',
-      },
+      orderBy: { created_at: 'desc' },
     });
-    return clientes;
   } catch (error) {
-    console.error("Error al obtener clientes para select:", error);
+    console.error('Error al obtener los clientes:', error);
     return [];
   }
 }
 
-function normalizarRut(rut?: string | null): string | null {
-  if (!rut) return null;
-  
-  let limpio = rut.replace(/\./g, "").replace(/\s/g, "").toUpperCase();
-  if (limpio === "") return null;
+export async function getClientePorId(id: string) {
+  try {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return null;
 
-  if (!limpio.includes("-") && limpio.length > 1) {
-    const cuerpo = limpio.slice(0, -1);
-    const dv = limpio.slice(-1);
-    limpio = `${cuerpo}-${dv}`;
+    // El filtro de pertenencia va dentro de la consulta: los datos ajenos nunca salen de la BD
+    return await prisma.clientes.findFirst({
+      where: { id, ...filtroClientes(ctx) },
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        nombre: true,
+        rut: true,
+        telefono: true,
+        email: true,
+        observaciones: true,
+        created_at: true,
+        inmuebles: {
+          select: {
+            id: true,
+            direccion: true,
+            comuna: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error al obtener el cliente por ID:', error);
+    return null;
   }
-
-  return limpio;
 }
 
-export async function crearCliente(data: unknown) {
+// La página de edición importa este nombre
+export async function obtenerClientePorId(id: string) {
+  return getClientePorId(id);
+}
+
+// Para el selector del formulario de inmuebles
+export async function getClientesSelect() {
   try {
-    // 1. Obtenemos el contexto dinámico del usuario autenticado actual
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) {
-      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
-    }
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return [];
 
-    const empresaId = contexto.empresaId || null;
-    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+    return await prisma.clientes.findMany({
+      where: { activo: true, ...filtroClientes(ctx) },
+      select: { id: true, nombre: true, email: true },
+      orderBy: { nombre: 'asc' },
+    });
+  } catch (error) {
+    console.error('Error al obtener clientes para el selector:', error);
+    return [];
+  }
+}
 
-    // 2. Normalizamos campos vacíos o undefined a null para que Zod no falle
-    const rawData = data as Record<string, any>;
-    const datosNormalizados = {
-      ...rawData,
-      rut: rawData.rut?.trim() || null,
-      telefono: rawData.telefono?.trim() || null,
-      email: rawData.email?.trim() || null,
-      observaciones: rawData.observaciones?.trim() || null,
-    };
+export async function crearCliente(data: Record<string, any>) {
+  try {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
 
-    // 3. Valida la entrada usando el schema de Zod
-    const validacion = clienteSchema.safeParse(datosNormalizados);
-    if (!validacion.success) {
-      const mensajeError = validacion.error.issues[0]?.message || "Datos inválidos.";
-      return { success: false, error: mensajeError };
-    }
+    const parsed = parsearCliente(data);
+    if (!parsed.ok) return { success: false, error: parsed.error };
 
-    const datosValidados = validacion.data;
-    const rutNormalizado = normalizarRut(datosValidados.rut);
-
-    // 4. Control de duplicados estrictamente dentro del ámbito del usuario (empresa o independiente)
-    if (rutNormalizado) {
-      const clienteExistente = await prisma.clientes.findFirst({
-        where: { 
-          rut: rutNormalizado,
-          ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
-        },
-      });
-
-      if (clienteExistente) {
-        return { 
-          success: false, 
-          error: `Ya existe un cliente registrado con el RUT ${datosValidados.rut}: ${clienteExistente.nombre}.` 
-        };
-      }
-    }
-
-    // 5. Crear el cliente inyectando dinámicamente empresa_id o tecnico_id según corresponda
-    const nuevoCliente = await prisma.clientes.create({
+    await prisma.clientes.create({
       data: {
-        ...(empresaId ? { empresa_id: empresaId } : {}),
-        ...(tecnicoId ? { tecnico_id: tecnicoId } : {}),
-        nombre: datosValidados.nombre.trim(),
-        rut: rutNormalizado, 
-        telefono: datosValidados.telefono?.trim() || null,
-        email: datosValidados.email?.trim() || null,
-        observaciones: datosValidados.observaciones?.trim() || null,
-      } as any,
-    }); 
-    
-    revalidatePath("/clientes");
-    revalidatePath("/dashboard/clientes");
-    revalidatePath("/dashboard/inmuebles/nueva");
+        ...parsed.data,
+        // La pertenencia la define el servidor, nunca el formulario
+        empresa_id: ctx.empresaId,
+        tecnico_id: ctx.esIndependiente ? ctx.perfilId : null,
+      },
+    });
 
-    return { success: true, data: nuevoCliente, mensaje: "Cliente creado exitosamente." };
+    revalidatePath('/dashboard/clientes');
+    revalidatePath('/dashboard');
+    return { success: true };
   } catch (error: any) {
-    if (error?.message === "NEXT_REDIRECT") throw error;
-    console.error("Error al crear cliente:", error);
-    return { success: false, error: "No se pudo registrar el cliente en la base de datos." };
+    console.error('Error al crear el cliente:', error);
+    return { success: false, error: error.message || 'No se pudo registrar el cliente.' };
   }
 }
 
-export async function actualizarCliente(id: string, data: unknown) {
+export async function actualizarCliente(id: string, data: Record<string, any>) {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) {
-      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
-    }
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
 
-    const empresaId = contexto.empresaId || null;
-    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
+    const parsed = parsearCliente(data);
+    if (!parsed.ok) return { success: false, error: parsed.error };
 
-    // Verificamos que el cliente pertenezca al ámbito del usuario actual
-    const clienteExistente = await prisma.clientes.findFirst({
-      where: { 
-        id, 
-        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
-      },
+    // updateMany con filtro de pertenencia: solo actualiza si el cliente es tuyo
+    const { count } = await prisma.clientes.updateMany({
+      where: { id, ...filtroClientes(ctx) },
+      data: { ...parsed.data, updated_at: new Date() },
     });
 
-    if (!clienteExistente) {
-      return { success: false, error: "Cliente no encontrado o no tienes permisos sobre él." };
+    if (count === 0) {
+      return { success: false, error: 'Cliente no encontrado o sin permisos.' };
     }
 
-    const rawData = data as Record<string, any>;
-    const datosNormalizados = {
-      ...rawData,
-      rut: rawData.rut?.trim() || null,
-      telefono: rawData.telefono?.trim() || null,
-      email: rawData.email?.trim() || null,
-      observaciones: rawData.observaciones?.trim() || null,
-    };
-
-    const validacion = clienteSchema.safeParse(datosNormalizados);
-    if (!validacion.success) {
-      const mensajeError = validacion.error.issues[0]?.message || "Datos inválidos.";
-      return { success: false, error: mensajeError };
-    }
-
-    const datosValidados = validacion.data;
-    const rutNormalizado = normalizarRut(datosValidados.rut);
-
-    if (rutNormalizado) {
-      const duplicado = await prisma.clientes.findFirst({
-        where: { 
-          rut: rutNormalizado, 
-          ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
-          NOT: { id } 
-        },
-      });
-      if (duplicado) {
-        return {
-          success: false,
-          error: `Ya existe otro cliente con el RUT ${datosValidados.rut}: ${duplicado.nombre}.`,
-        };
-      }
-    }
-
-    const clienteActualizado = await prisma.clientes.update({
-      where: { id },
-      data: {
-        nombre: datosValidados.nombre.trim(),
-        rut: rutNormalizado,
-        telefono: datosValidados.telefono?.trim() || null,
-        email: datosValidados.email?.trim() || null,
-        observaciones: datosValidados.observaciones?.trim() || null,
-      },
-    });
-
+    revalidatePath('/dashboard/clientes');
     revalidatePath(`/dashboard/clientes/${id}`);
-    revalidatePath(`/dashboard/clientes/${id}/editar`);
-    revalidatePath("/dashboard/clientes");
-    revalidatePath("/dashboard/inmuebles/nueva");
-
-    return { success: true, data: clienteActualizado, mensaje: "Cliente actualizado exitosamente." };
+    return { success: true };
   } catch (error: any) {
-    if (error?.message === "NEXT_REDIRECT") throw error;
-    console.error("Error al actualizar cliente:", error);
-    return { success: false, error: "No se pudo actualizar el cliente." };
+    console.error('Error al actualizar el cliente:', error);
+    return { success: false, error: error.message || 'No se pudo actualizar el cliente.' };
   }
 }
 
 export async function eliminarCliente(id: string) {
   try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) {
-      return { success: false, error: "No se encontró una sesión activa o un perfil válido." };
-    }
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No hay una sesión activa.' };
 
-    const empresaId = contexto.empresaId || null;
-    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
-
-    const clienteExistente = await prisma.clientes.findFirst({
-      where: { 
-        id, 
-        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
-      },
+    const { count } = await prisma.clientes.deleteMany({
+      where: { id, ...filtroClientes(ctx) },
     });
 
-    if (!clienteExistente) {
-      return { success: false, error: "Cliente no encontrado o no tienes permisos sobre él." };
+    if (count === 0) {
+      return { success: false, error: 'Cliente no encontrado o sin permisos.' };
     }
 
-    const cantidadInmuebles = await prisma.inmuebles.count({
-      where: { cliente_id: id },
-    });
-
-    if (cantidadInmuebles > 0) {
+    revalidatePath('/dashboard/clientes');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error: any) {
+    // P2003: restricción de llave foránea (el cliente aún tiene inmuebles)
+    if (error?.code === 'P2003') {
       return {
         success: false,
-        error: `No se puede eliminar: el cliente tiene ${cantidadInmuebles} inmueble(s) asociado(s).`,
+        error: 'No se puede eliminar: el cliente tiene inmuebles asociados. Elimínalos primero.',
       };
     }
-
-    await prisma.clientes.delete({ where: { id } });
-
-    revalidatePath("/dashboard/clientes");
-    revalidatePath("/dashboard/inmuebles/nueva");
-    
-    return { success: true, mensaje: "Cliente eliminado exitosamente." };
-  } catch (error: any) {
-    if (error?.message === "NEXT_REDIRECT") throw error;
-    console.error("Error al eliminar cliente:", error);
-    return { success: false, error: "No se pudo eliminar el cliente." };
+    console.error('Error al eliminar el cliente:', error);
+    return { success: false, error: error.message || 'No se pudo eliminar el cliente.' };
   }
 }
-
-export async function obtenerClientePorId(id: string) {
-  try {
-    const contexto = await obtenerContextoUsuarioActual();
-    if (!contexto) return null;
-
-    const empresaId = contexto.empresaId || null;
-    const tecnicoId = contexto.esIndependiente ? contexto.perfilId : null;
-
-    return await prisma.clientes.findFirst({
-      where: { 
-        id, 
-        ...(empresaId ? { empresa_id: empresaId } : { tecnico_id: tecnicoId }),
-      },
-      include: { inmuebles: { orderBy: { created_at: "desc" } } },
-    });
-  } catch (error) {
-    console.error("Error al obtener el cliente:", error);
-    return null;
-  }
-} 

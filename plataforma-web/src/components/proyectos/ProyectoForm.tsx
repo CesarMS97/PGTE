@@ -23,15 +23,37 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Extraer la lista única de clientes a partir de los inmuebles disponibles
+  const clientesMap = new Map();
+  inmuebles.forEach((inm) => {
+    if (inm.clientes) {
+      clientesMap.set(inm.clientes.id, inm.clientes);
+    }
+  });
+  const clientes = Array.from(clientesMap.values()).sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
+
+  // Preseleccionar cliente si estamos editando o si viene un inmueble por defecto
+  const inmuebleInicial = inmuebles.find((i) => i.id === defaultValues.inmueble_id);
+  const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string>(
+    inmuebleInicial?.clientes?.id || ''
+  );
+  const [inmuebleIdSeleccionado, setInmuebleIdSeleccionado] = useState<string>(
+    defaultValues.inmueble_id || ''
+  );
+
+  // Filtrar los inmuebles que pertenecen exclusivamente al cliente seleccionado
+  const inmueblesFiltrados = inmuebles.filter(
+    (inm) => inm.clientes?.id === clienteIdSeleccionado
+  );
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
 
     const formData = new FormData(e.currentTarget);
+    formData.set('inmueble_id', inmuebleIdSeleccionado);
 
-    // Solución definitiva para la fecha en Chile (UTC-3):
-    // Obtenemos la fecha actual en formato ISO local (YYYY-MM-DDTHH:mm:ss) para que no haya desfase de día.
     if (!isEditing) {
       const ahoraChile = new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' });
       formData.append('fecha_solicitud', new Date(ahoraChile).toISOString());
@@ -40,7 +62,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
     try {
       const res = await action(formData);
 
-      // Si la Server Action retorna éxito o se ejecuta correctamente
       if (!res || res.success !== false) {
         router.push('/dashboard/proyectos');
         router.refresh();
@@ -48,7 +69,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         setErrorMsg(res.error || 'No se pudo guardar el proyecto.');
       }
     } catch (error: any) {
-      // Si la Server Action hace un redirect nativo de Next.js, capturamos el throw de redirección controlado
       if (error?.message?.includes('NEXT_REDIRECT')) {
         return;
       }
@@ -67,35 +87,68 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         </div>
       )}
 
-      {/* Selección de Inmueble */}
-      <div>
-        <label htmlFor="inmueble_id" className="block text-sm font-medium text-slate-700 mb-1">
-          Inmueble Asociado <span className="text-red-500">*</span>
-        </label>
-        {inmuebles.length === 0 ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-2">
-            <p>No tienes inmuebles registrados o disponibles para asociar.</p>
-            <Link href="/dashboard/inmuebles/nuevo" className="inline-block font-medium underline text-amber-900">
-              Registra un inmueble primero &rarr;
-            </Link>
+      {inmuebles.length === 0 ? (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-2">
+          <p>No tienes inmuebles registrados o disponibles para asociar.</p>
+          <Link href="/dashboard/inmuebles/nuevo" className="inline-block font-medium underline text-amber-900">
+            Registra un inmueble primero &rarr;
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Paso 1: Selección de Cliente */}
+          <div>
+            <label htmlFor="cliente_filtro" className="block text-sm font-medium text-slate-700 mb-1">
+              1. Seleccionar Cliente <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="cliente_filtro"
+              value={clienteIdSeleccionado}
+              onChange={(e) => {
+                setClienteIdSeleccionado(e.target.value);
+                setInmuebleIdSeleccionado(''); // Reiniciar inmueble al cambiar de cliente
+              }}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Selecciona un cliente...</option>
+              {clientes.map((cliente: any) => (
+                <option key={cliente.id} value={cliente.id}>
+                  {cliente.nombre}
+                </option>
+              ))}
+            </select>
           </div>
-        ) : (
-          <select
-            id="inmueble_id"
-            name="inmueble_id"
-            required
-            defaultValue={defaultValues.inmueble_id || ''}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="">Selecciona un inmueble...</option>
-            {inmuebles.map((inmueble: any) => (
-              <option key={inmueble.id} value={inmueble.id}>
-                {inmueble.nombre_referencia || inmueble.direccion} ({inmueble.clientes?.nombre || 'Sin cliente'})
+
+          {/* Paso 2: Selección de Inmueble (Dependiente del cliente) */}
+          <div>
+            <label htmlFor="inmueble_id" className="block text-sm font-medium text-slate-700 mb-1">
+              2. Seleccionar Inmueble <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="inmueble_id"
+              name="inmueble_id"
+              required
+              value={inmuebleIdSeleccionado}
+              onChange={(e) => setInmuebleIdSeleccionado(e.target.value)}
+              disabled={!clienteIdSeleccionado}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {!clienteIdSeleccionado
+                  ? '← Primero selecciona un cliente...'
+                  : inmueblesFiltrados.length === 0
+                  ? 'Este cliente no tiene inmuebles'
+                  : 'Selecciona un inmueble...'}
               </option>
-            ))}
-          </select>
-        )}
-      </div>
+              {inmueblesFiltrados.map((inmueble: any) => (
+                <option key={inmueble.id} value={inmueble.id}>
+                  {inmueble.nombre_referencia || inmueble.direccion} ({inmueble.comuna || 'Sin comuna'})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Título del Proyecto */}
       <div>

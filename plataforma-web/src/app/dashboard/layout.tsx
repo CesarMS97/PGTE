@@ -1,4 +1,3 @@
-
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
@@ -16,17 +15,17 @@ async function AuthGuard({
 
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  // getClaims() valida el JWT localmente (sin viaje de red a Supabase Auth)
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (error || !user) {
+  if (error || !claims?.sub) {
     redirect("/login");
   }
 
-  // Recuperar nombre desde Supabase Auth
-  const metadata = user.user_metadata ?? {};
+  // Recuperar nombre desde los claims del token
+  const metadata = (claims.user_metadata ?? {}) as Record<string, unknown>;
+  const email = typeof claims.email === "string" ? claims.email : "";
 
   const nombreCompleto = [
     metadata.nombre,
@@ -42,13 +41,13 @@ async function AuthGuard({
 
   const nombreTecnico =
     nombreCompleto ||
-    user.email?.split("@")[0] ||
+    email.split("@")[0] ||
     "Técnico";
 
   return (
     <DashboardShell
       nombre={nombreTecnico}
-      email={user.email ?? ""}
+      email={email}
     >
       {children}
     </DashboardShell>
