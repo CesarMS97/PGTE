@@ -14,6 +14,7 @@ import {
   Clock3,
 } from "lucide-react";
 
+
 export const instant = false;
 
 export default async function DashboardPage() {
