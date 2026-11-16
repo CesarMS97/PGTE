@@ -12,7 +12,7 @@ export function InmueblesHeader() {
         </p>
       </div>
       <Link
-        href="/dashboard/inmuebles/nueva"
+        href="/dashboard/inmuebles/nuevo"
         className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-sm hover:shadow transition-all duration-200 active:scale-[0.98]"
       >
         + Registrar Inmueble

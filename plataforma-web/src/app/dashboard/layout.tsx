@@ -1,11 +1,11 @@
-
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import CalculadoraModal from "@/components/herramientas/CalculadoraModal";
 
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
+export const instant = false;
 
 async function AuthGuard({
   children,
@@ -16,32 +16,45 @@ async function AuthGuard({
 
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  // getClaims() valida el JWT localmente (sin viaje de red a Supabase Auth)
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (error || !user) {
+  if (error || !claims?.sub) {
     redirect("/login");
   }
 
+  // Recuperar nombre desde los claims del token
+  const metadata = (claims.user_metadata ?? {}) as Record<string, unknown>;
+  const email = typeof claims.email === "string" ? claims.email : "";
+
+  const nombreCompleto = [
+    metadata.nombre,
+    metadata.apellido,
+  ]
+    .filter(
+      (valor): valor is string =>
+        typeof valor === "string" &&
+        valor.trim().length > 0
+    )
+    .join(" ")
+    .trim();
+
+  const nombreTecnico =
+    nombreCompleto ||
+    email.split("@")[0] ||
+    "Técnico";
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900 antialiased">
+    <DashboardShell
+      nombre={nombreTecnico}
+      email={email}
+    >
+      {children}
 
-      {/* Header superior */}
-      <DashboardHeader email={user.email} />
-
-      {/* Sidebar y contenido */}
-      <div className="flex flex-1">
-
-        <DashboardSidebar />
-
-        <main className="min-w-0 flex-1 overflow-x-hidden">
-          {children}
-        </main>
-
-      </div>
-    </div>
+      {/* Calculadora flotante disponible en todo el dashboard */}
+      <CalculadoraModal />
+    </DashboardShell>
   );
 }
 
@@ -53,7 +66,7 @@ export default function DashboardLayout({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex min-h-dvh items-center justify-center bg-slate-50">
           <p className="text-sm text-slate-500">
             Verificando sesión...
           </p>

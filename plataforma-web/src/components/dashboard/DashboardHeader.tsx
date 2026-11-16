@@ -1,56 +1,76 @@
 
-import { Bell, ChevronDown, Zap } from "lucide-react";
+"use client";
+
+import { Menu, Zap } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
 
 type DashboardHeaderProps = {
-  email?: string;
+  nombre: string;
+  email: string;
+  onMenuClick: () => void;
 };
 
 export default function DashboardHeader({
+  nombre,
   email,
+  onMenuClick,
 }: DashboardHeaderProps) {
-  const nombre = email?.split("@")[0] ?? "Usuario";
+  const nombreSeguro = nombre?.trim() || "Técnico";
+
+  const iniciales = nombreSeguro
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((parte) => parte.charAt(0).toUpperCase())
+    .join("");
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 md:px-8">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-slate-900">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8">
+      {/* Logo */}
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Abrir menú"
+          className="rounded-lg p-2 text-slate-700 transition hover:bg-slate-100 lg:hidden"
+        >
+          <Menu size={23} />
+        </button>
+
+        <div className="flex items-center gap-2">
           <Zap className="h-7 w-7 fill-blue-600 text-blue-600" />
-          <span className="text-xl font-bold tracking-tight">
+          <span className="text-xl font-bold text-[#0D2345]">
             PGTE
           </span>
         </div>
 
-        <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-
-        <span className="hidden text-xs text-slate-500 sm:block">
+        <span className="ml-3 hidden border-l border-slate-200 pl-4 text-xs text-slate-500 xl:block">
           Plataforma de Gestión Técnica Eléctrica
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="hidden text-slate-500 sm:block">
-          <Bell className="h-5 w-5" />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
-            {nombre.slice(0, 2).toUpperCase()}
+      {/* Perfil */}
+      <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+        <div
+          className="flex items-center gap-2.5"
+          title={email}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0D2345] text-xs font-bold text-white">
+            {iniciales}
           </div>
 
-          <div className="hidden flex-col md:flex">
-            <span className="text-sm font-semibold text-slate-800">
-              {nombre}
+          <div className="hidden min-w-0 flex-col sm:flex">
+            <span className="max-w-40 truncate text-sm font-semibold text-slate-900">
+              {nombreSeguro}
             </span>
             <span className="text-xs text-slate-500">
-              Usuario PGTE
+              Técnico eléctrico
             </span>
           </div>
-
-          <ChevronDown className="hidden h-4 w-4 text-slate-400 md:block" />
         </div>
 
-        <LogoutButton />
+        <div className="hidden sm:block">
+          <LogoutButton />
+        </div>
       </div>
     </header>
   );

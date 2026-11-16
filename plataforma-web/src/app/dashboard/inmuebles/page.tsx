@@ -1,6 +1,5 @@
-
 import { Suspense } from "react";
-
+import { connection } from "next/server";
 import { getInmuebles } from "@/services/inmuebles.service";
 import { InmueblesHeader } from "@/components/inmuebles/InmueblesHeader";
 import { InmueblesEmptyState } from "@/components/inmuebles/InmueblesEmptyState";
@@ -9,10 +8,13 @@ import { StatsCard } from "@/components/ui/StatsCard";
 
 // Componente que obtiene los datos desde Prisma
 async function InmueblesContent() {
+  await connection();
+
   const inmuebles = await getInmuebles();
 
   return (
-    <div className="space-y-6">
+    // Contenedor con ancho máximo y márgenes laterales idénticos al módulo de clientes
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       <InmueblesHeader />
 
       {/* Tarjetas de resumen */}
@@ -29,7 +31,7 @@ async function InmueblesContent() {
             value={
               new Set(
                 inmuebles
-                  .map((i) => i.clientes?.nombre)
+                  .map((i: any) => i.clientes?.nombre)
                   .filter(Boolean)
               ).size
             }
@@ -56,10 +58,10 @@ export default function InmueblesPage() {
   );
 }
 
-// Interfaz de carga temporal
+// Interfaz de carga temporal con los mismos márgenes estéticos
 function InmueblesLoading() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-pulse">
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
