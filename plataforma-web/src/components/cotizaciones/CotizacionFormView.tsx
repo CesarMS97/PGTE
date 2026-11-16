@@ -3,31 +3,59 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { agregarItemCotizacion, eliminarItemCotizacion, finalizarCotizacion } from '@/services/cotizaciones.service';
-import { Plus, Trash2, CheckCircle2, Loader2, Download, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Loader2, Download, MessageSquare, ClipboardCheck, ShieldAlert, ChevronDown, ChevronUp, User, Building2, MapPin, Zap } from 'lucide-react';
 
 interface CotizacionFormViewProps {
   proyectoId: string;
   initialCotizacion: any;
+  levantamiento?: any;
+  clienteInfo?: { nombre: string; telefono?: string | null };
+  inmuebleInfo?: { direccion: string; comuna: string; referencia?: string | null };
 }
 
-export function CotizacionFormView({ proyectoId, initialCotizacion }: CotizacionFormViewProps) {
+function parsearHallazgosParaVista(raw?: string | null): string[] {
+  if (!raw || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item).trim()).filter(Boolean);
+    }
+  } catch {}
+  return raw
+    .split('\n')
+    .map((linea) => linea.replace(/^[-•*]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function formatearCLP(valor: number): string {
+  return Math.round(valor).toLocaleString('es-CL');
+}
+
+export function CotizacionFormView({ 
+  proyectoId, 
+  initialCotizacion, 
+  levantamiento, 
+  clienteInfo, 
+  inmuebleInfo 
+}: CotizacionFormViewProps) {
   const router = useRouter();
   const [cotizacion, setCotizacion] = useState(initialCotizacion);
   const [items, setItems] = useState<any[]>(initialCotizacion?.cotizacion_items || []);
 
   const [tipo, setTipo] = useState('material');
   const [descripcion, setDescripcion] = useState('');
-  const [cantidad, setCantidad] = useState(1);
-  const [precioUnitario, setPrecioUnitario] = useState(0);
+  const [cantidadStr, setCantidadStr] = useState('1');
+  const [precioStr, setPrecioStr] = useState('');
 
   const [adding, setAdding] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [mostrarLevantamiento, setMostrarLevantamiento] = useState(true);
 
-  // Referencia para capturar exclusivamente el formato limpio para el cliente
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  // Cálculos dinámicos en tiempo real
+  const hallazgosList = parsearHallazgosParaVista(levantamiento?.observaciones);
+
   const subtotalMateriales = items
     .filter((i) => i.tipo === 'material')
     .reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
@@ -41,12 +69,18 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
     .reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
 
   const subtotalGeneral = subtotalMateriales + subtotalManoObra + otrosCostos;
-  const iva = subtotalGeneral * 0.19;
-  const totalGeneral = subtotalGeneral + iva;
+  const iva = Math.round(subtotalGeneral * 0.19);
+  const totalGeneral = Math.round(subtotalGeneral + iva);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!descripcion || cantidad <= 0 || precioUnitario < 0) return;
+    const cantNum = Number(cantidadStr);
+    const precioNum = Number(precioStr);
+
+    if (!descripcion.trim() || isNaN(cantNum) || cantNum <= 0 || isNaN(precioNum) || precioNum < 0) {
+      alert('Por favor, ingresa una descripción válida, cantidad mayor a 0 y precio válido.');
+      return;
+    }
 
     setAdding(true);
 
@@ -54,16 +88,16 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
       cotizacionId: cotizacion.id,
       proyectoId,
       tipo,
-      descripcion,
-      cantidad,
-      precioUnitario,
+      descripcion: descripcion.trim(),
+      cantidad: cantNum,
+      precioUnitario: precioNum,
     });
 
     if (res.success && res.item) {
       setItems((prev) => [...prev, res.item]);
       setDescripcion('');
-      setCantidad(1);
-      setPrecioUnitario(0);
+      setCantidadStr('1');
+      setPrecioStr('');
     } else {
       alert('Error al agregar el ítem: ' + res.error);
     }
@@ -100,7 +134,6 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
     }
   };
 
-  // Función que genera y descarga el PDF limpio mediante html2pdf.js con tipos corregidos
   const handleDownloadPDF = async () => {
     if (items.length === 0) {
       alert('No hay elementos en la cotización para exportar.');
@@ -115,7 +148,7 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
       const html2pdf = (await import('html2pdf.js')).default;
       
       const options = {
-        margin:       15,
+        margin:       10,
         filename:     `Presupuesto_${cotizacion.numero}.pdf`,
         image:        { type: 'jpeg' as const, quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true },
@@ -132,21 +165,133 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
   };
 
   const handleWhatsAppShare = () => {
-    const telefonoCliente = initialCotizacion?.proyectos?.inmuebles?.clientes?.telefono || '';
+    const telefonoCliente = clienteInfo?.telefono || '';
     const proyectoTitulo = initialCotizacion?.proyectos?.titulo || 'Proyecto eléctrico';
     
-    const texto = `Hola, le escribo para compartirle el envío de su cotización (${cotizacion.numero}) correspondiente al proyecto "${proyectoTitulo}". El total del presupuesto es de $${totalGeneral.toLocaleString('es-CL')} (IVA incluido). Quedo atento a cualquier duda.`;
+    const texto = `Hola, le escribo para compartirle el envío de su cotización (${cotizacion.numero}) correspondiente al proyecto "${proyectoTitulo}". El total del presupuesto es de $${formatearCLP(totalGeneral)} (IVA incluido). Quedo atento a cualquier duda.`;
     
     const url = `https://api.whatsapp.com/send?phone=${telefonoCliente}&text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   };
 
-  const clienteNombre = initialCotizacion?.proyectos?.inmuebles?.clientes?.nombre || 'N/A';
+  const clienteNombre = clienteInfo?.nombre || initialCotizacion?.proyectos?.inmuebles?.clientes?.nombre || 'N/A';
+  const clienteTelefono = clienteInfo?.telefono || 'No registrado';
   const proyectoTitulo = initialCotizacion?.proyectos?.titulo || 'Proyecto eléctrico';
+  const nombreInmueble = inmuebleInfo?.referencia || initialCotizacion?.proyectos?.inmuebles?.nombre_referencia || 'Inmueble Principal';
+  const direccionInmueble = inmuebleInfo?.direccion || initialCotizacion?.proyectos?.inmuebles?.direccion || 'Sin dirección';
+  const comunaInmueble = inmuebleInfo?.comuna || initialCotizacion?.proyectos?.inmuebles?.comuna || 'Sin comuna';
+  const fechaEmision = new Date().toLocaleDateString('es-CL');
 
   return (
     <div className="space-y-6">
-      {/* Formulario para añadir ítems (Uso técnico exclusivo interno) */}
+
+      {/* Tarjeta de Referencia: Cliente, Inmueble y Hallazgos del Levantamiento */}
+      {levantamiento ? (
+        <div className="bg-gradient-to-br from-slate-900 to-[#0D2345] text-white rounded-2xl shadow-sm border border-slate-800 overflow-hidden">
+          <div 
+            onClick={() => setMostrarLevantamiento(!mostrarLevantamiento)}
+            className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-600/40 text-blue-300 rounded-xl">
+                <ClipboardCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">Inspección de Terreno y Hallazgos Registrados</h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Cliente, dirección del inmueble y parámetros eléctricos relevados.
+                </p>
+              </div>
+            </div>
+            <button type="button" className="text-slate-300 hover:text-white p-1">
+              {mostrarLevantamiento ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </div>
+
+          {mostrarLevantamiento && (
+            <div className="px-5 pb-5 pt-1 border-t border-white/10 space-y-4 text-xs">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-black/30 p-4 rounded-xl border border-white/10">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg mt-0.5">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-blue-300 block">Cliente Solicitante</span>
+                    <strong className="text-white text-sm block">{clienteNombre}</strong>
+                    <span className="text-slate-300 text-[11px]">Tel: {clienteTelefono}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg mt-0.5">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-300 block">Inmueble / Ubicación</span>
+                    <strong className="text-white text-sm block">{nombreInmueble}</strong>
+                    <span className="text-slate-300 text-[11px] flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      {direccionInmueble}, {comunaInmueble}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/20 p-3.5 rounded-xl border border-white/5">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Instalación</span>
+                  <span className="font-bold text-white">{levantamiento.tipo_instalacion || 'No especificada'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Empalme</span>
+                  <span className="font-bold text-white">{levantamiento.tipo_empalme || 'No especificado'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Tensión / Potencia</span>
+                  <span className="font-bold text-white">{levantamiento.tension_nominal_v || '—'} V / {levantamiento.potencia_contratada_kw || '—'} kW</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Puesta a Tierra</span>
+                  <span className={`font-bold ${levantamiento.puesta_tierra ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {levantamiento.puesta_tierra ? `Sí (${levantamiento.resistencia_tierra_ohm ?? '—'} Ω)` : 'No / Deficiente'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> Hallazgos y Observaciones de Terreno ({hallazgosList.length})
+                </span>
+
+                {hallazgosList.length > 0 ? (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {hallazgosList.map((hallazgo, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-white/10 p-2.5 rounded-lg border border-white/5 text-slate-200">
+                        <span className="w-4 h-4 rounded-full bg-amber-400/20 text-amber-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <span className="leading-relaxed">{hallazgo}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-400 italic bg-white/5 p-3 rounded-lg">
+                    No se registraron hallazgos detallados en el levantamiento.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-xs font-medium flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span>Este proyecto no cuenta con un formulario de levantamiento técnico asociado todavía.</span>
+        </div>
+      )}
+
+      {/* Formulario para añadir ítems */}
       <form onSubmit={handleAddItem} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
           <Plus className="w-4 h-4 text-blue-600" /> Añadir Ítem al Presupuesto (Uso Técnico Interno)
@@ -181,10 +326,14 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
           <div>
             <label className="block text-slate-600 font-semibold mb-1">Cantidad</label>
             <input
-              type="number"
-              min="1"
-              value={cantidad}
-              onChange={(e) => setCantidad(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              placeholder="1"
+              value={cantidadStr}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                setCantidadStr(val);
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white transition-colors"
               required
             />
@@ -193,10 +342,14 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
           <div className="md:col-span-2">
             <label className="block text-slate-600 font-semibold mb-1">Precio Unitario ($ CLP)</label>
             <input
-              type="number"
-              min="0"
-              value={precioUnitario}
-              onChange={(e) => setPrecioUnitario(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              placeholder="Ej: 18500"
+              value={precioStr}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                setPrecioStr(val);
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white transition-colors"
               required
             />
@@ -222,10 +375,9 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
         </div>
       </form>
 
-      {/* Contenedor principal */}
+      {/* Contenedor principal de ítems y totales */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-6">
         
-        {/* Cabecera y botón de descarga directa del PDF */}
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">Presupuesto — Folio: {cotizacion.numero}</h3>
@@ -247,7 +399,7 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
           </div>
         </div>
 
-        {/* Tabla Detallada Interna (Visible en pantalla solo para ti) */}
+        {/* Tabla Detallada Interna */}
         <div className="space-y-3">
           <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider">Detalle de Costes y Servicios (Uso Interno)</h4>
           <div className="overflow-x-auto border border-slate-100 rounded-xl">
@@ -269,8 +421,8 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
                       <td className="p-3 font-bold uppercase text-slate-500 text-[10px]">{item.tipo}</td>
                       <td className="p-3 font-bold text-slate-900">{item.descripcion}</td>
                       <td className="p-3 text-center font-semibold text-slate-700">{item.cantidad}</td>
-                      <td className="p-3 text-right text-slate-600">${Number(item.precio_unitario).toLocaleString('es-CL')}</td>
-                      <td className="p-3 text-right font-extrabold text-slate-900">${Number(item.subtotal).toLocaleString('es-CL')}</td>
+                      <td className="p-3 text-right text-slate-600">${formatearCLP(Number(item.precio_unitario))}</td>
+                      <td className="p-3 text-right font-extrabold text-slate-900">${formatearCLP(Number(item.subtotal))}</td>
                       <td className="p-3 text-center">
                         <button
                           type="button"
@@ -294,42 +446,110 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
           </div>
         </div>
 
-        {/* CONTENEDOR OCULTO EXCLUSIVO PARA EL PDF DEL CLIENTE 
-            (Contiene únicamente el Resumen General sin revelar insumos ni proveedores) */}
+        {/* CONTENEDOR OCULTO CON EL NUEVO DISEÑO PROFESIONAL PARA EL PDF DEL CLIENTE */}
         <div style={{ display: 'none' }}>
-          <div ref={pdfRef} style={{ padding: '20px', fontFamily: 'sans-serif', color: '#1e293b', background: '#ffffff' }}>
-            <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 5px 0' }}>Presupuesto Comercial</h2>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '0' }}>Folio: <strong>{cotizacion.numero}</strong> | Proyecto: {proyectoTitulo}</p>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '3px 0 0 0' }}>Cliente: <strong>{clienteNombre}</strong></p>
+          <div ref={pdfRef} style={{ padding: '25px', fontFamily: 'sans-serif', color: '#1e293b', background: '#ffffff', fontSize: '11px' }}>
+            
+            {/* Cabecera del Documento */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '15px', marginBottom: '20px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                  <div style={{ background: '#2563eb', color: '#ffffff', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    ⚡
+                  </div>
+                  <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: '#0f172a', margin: '0' }}>PGTE</h1>
+                </div>
+                <p style={{ fontSize: '10px', color: '#64748b', margin: '0' }}>Plataforma de Gestión Técnica Eléctrica</p>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 5px 0', textTransform: 'uppercase' }}>COTIZACIÓN</h2>
+                <p style={{ fontSize: '11px', color: '#475569', margin: '0' }}>Nº Cotización: <strong>{cotizacion.numero}</strong></p>
+                <p style={{ fontSize: '11px', color: '#475569', margin: '2px 0 0 0' }}>Fecha: <strong>{fechaEmision}</strong></p>
+              </div>
             </div>
 
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', maxWidth: '350px', marginLeft: 'auto' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', margin: '0 0 12px 0' }}>Resumen General</h4>
+            {/* Bloques de Proveedor y Cliente */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
               
-              <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span>Subtotal Materiales e Insumos:</span>
-                <strong>${subtotalMateriales.toLocaleString('es-CL')}</strong>
-              </div>
-              <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span>Subtotal Mano de Obra:</span>
-                <strong>${subtotalManoObra.toLocaleString('es-CL')}</strong>
-              </div>
-              {otrosCostos > 0 && (
-                <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>Otros Servicios / Costos:</span>
-                  <strong>${otrosCostos.toLocaleString('es-CL')}</strong>
+              {/* Proveedor / Técnico */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ background: '#f1f5f9', padding: '6px 10px', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1', fontSize: '10px', textTransform: 'uppercase', color: '#475569' }}>
+                  Técnico / Empresa Proveedora
                 </div>
-              )}
-              <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginBottom: '8px' }}>
-                <span>IVA (19%):</span>
-                <strong>${iva.toLocaleString('es-CL')}</strong>
+                <div style={{ padding: '10px', lineHeight: '1.4' }}>
+                  <p style={{ margin: '0 0 3px 0' }}><strong>Nombre:</strong> Marcelo Tapia</p>
+                  <p style={{ margin: '0 0 3px 0' }}><strong>Especialidad:</strong> Instalador / Técnico Eléctrico</p>
+                  <p style={{ margin: '0 0 3px 0' }}><strong>Proyecto:</strong> {proyectoTitulo}</p>
+                </div>
               </div>
-              <div style={{ fontSize: '14px', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #cbd5e1', paddingTop: '10px', fontWeight: 'bold', color: '#2563eb' }}>
-                <span>Total Presupuesto:</span>
-                <span>${totalGeneral.toLocaleString('es-CL')}</span>
+
+              {/* Cliente */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ background: '#f1f5f9', padding: '6px 10px', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1', fontSize: '10px', textTransform: 'uppercase', color: '#475569' }}>
+                  Cliente / Destinatario
+                </div>
+                <div style={{ padding: '10px', lineHeight: '1.4' }}>
+                  <p style={{ margin: '0 0 3px 0' }}><strong>Nombre:</strong> {clienteNombre}</p>
+                  <p style={{ margin: '0 0 3px 0' }}><strong>Teléfono:</strong> {clienteTelefono}</p>
+                  <p style={{ margin: '0' }}><strong>Inmueble / Dir:</strong> {nombreInmueble} ({direccionInmueble}, {comunaInmueble})</p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Título de la Sección */}
+            <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#0f172a', marginBottom: '8px', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+              Descripción de Servicios y Cotización
+            </div>
+
+            {/* Tabla de Servicios / Ítems */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
+              <thead>
+                <tr style={{ background: '#0f172a', color: '#ffffff', textAlign: 'left' }}>
+                  <th style={{ padding: '8px', border: '1px solid #0f172a', width: '35%' }}>DESCRIPCIÓN</th>
+                  <th style={{ padding: '8px', border: '1px solid #0f172a', textAlign: 'center', width: '15%' }}>TIPO</th>
+                  <th style={{ padding: '8px', border: '1px solid #0f172a', textAlign: 'center', width: '15%' }}>CANT.</th>
+                  <th style={{ padding: '8px', border: '1px solid #0f172a', textAlign: 'right', width: '17%' }}>P. UNITARIO</th>
+                  <th style={{ padding: '8px', border: '1px solid #0f172a', textAlign: 'right', width: '18%' }}>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                    <td style={{ padding: '7px 8px', border: '1px solid #cbd5e1' }}>{item.descripcion}</td>
+                    <td style={{ padding: '7px 8px', border: '1px solid #cbd5e1', textAlign: 'center', textTransform: 'uppercase' }}>{item.tipo}</td>
+                    <td style={{ padding: '7px 8px', border: '1px solid #cbd5e1', textAlign: 'center' }}>{item.cantidad}</td>
+                    <td style={{ padding: '7px 8px', border: '1px solid #cbd5e1', textAlign: 'right' }}>${formatearCLP(Number(item.precio_unitario))}</td>
+                    <td style={{ padding: '7px 8px', border: '1px solid #cbd5e1', textAlign: 'right', fontWeight: 'bold' }}>${formatearCLP(Number(item.subtotal))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Resumen de Totales */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '30px' }}>
+              <div style={{ width: '250px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                  <span>Subtotal:</span>
+                  <strong>${formatearCLP(subtotalGeneral)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                  <span>IVA (19%):</span>
+                  <strong>${formatearCLP(iva)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: '#0f172a', color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}>
+                  <span>TOTAL:</span>
+                  <span>${formatearCLP(totalGeneral)}</span>
+                </div>
               </div>
             </div>
+
+            {/* Pie de página informativo */}
+            <div style={{ textAlign: 'center', fontSize: '9px', color: '#64748b', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+              Documento generado digitalmente a través de PGTE (Plataforma de Gestión Técnica Eléctrica). Válido como presupuesto comercial.
+            </div>
+
           </div>
         </div>
 
@@ -340,25 +560,25 @@ export function CotizacionFormView({ proyectoId, initialCotizacion }: Cotizacion
           <div className="space-y-2 text-xs">
             <div className="flex justify-between text-slate-600 font-medium">
               <span>Subtotal Materiales e Insumos:</span>
-              <span>${subtotalMateriales.toLocaleString('es-CL')}</span>
+              <span>${formatearCLP(subtotalMateriales)}</span>
             </div>
             <div className="flex justify-between text-slate-600 font-medium">
               <span>Subtotal Mano de Obra:</span>
-              <span>${subtotalManoObra.toLocaleString('es-CL')}</span>
+              <span>${formatearCLP(subtotalManoObra)}</span>
             </div>
             {otrosCostos > 0 && (
               <div className="flex justify-between text-slate-600 font-medium">
                 <span>Otros Servicios / Costos:</span>
-                <span>${otrosCostos.toLocaleString('es-CL')}</span>
+                <span>${formatearCLP(otrosCostos)}</span>
               </div>
             )}
             <div className="flex justify-between text-slate-600 font-medium border-t border-slate-200 pt-2">
               <span>IVA (19%):</span>
-              <span>${iva.toLocaleString('es-CL')}</span>
+              <span>${formatearCLP(iva)}</span>
             </div>
             <div className="flex justify-between items-center text-sm font-extrabold text-slate-900 border-t border-slate-200 pt-2 mt-1">
               <span>Total Presupuesto:</span>
-              <span className="text-base text-blue-600">${totalGeneral.toLocaleString('es-CL')}</span>
+              <span className="text-base text-blue-600">${formatearCLP(totalGeneral)}</span>
             </div>
           </div>
         </div>

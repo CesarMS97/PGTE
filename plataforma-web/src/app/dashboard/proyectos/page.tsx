@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { getProyectos } from '@/services/proyectos.service';
-import { PrioridadBadge, EstadoBadge } from '@/components/proyectos/ProyectoBadges';
-import { Plus, FolderKanban, Building2, User, Calendar, AlertCircle } from 'lucide-react';
+import { ProyectosTable } from '@/components/proyectos/ProyectosTable';
+import { Plus, FolderKanban, AlertCircle } from 'lucide-react';
 
 // Desactiva el prerenderizado instantáneo de Next.js 16 para rutas dinámicas con connection()
 export const instant = false;
@@ -63,69 +63,7 @@ export default async function ProyectosPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3.5 px-6">Título / Trabajo</th>
-                  <th className="py-3.5 px-6">Inmueble / Cliente</th>
-                  <th className="py-3.5 px-6">Prioridad</th>
-                  <th className="py-3.5 px-6">Estado</th>
-                  <th className="py-3.5 px-6">Fecha Solicitud</th>
-                  <th className="py-3.5 px-6 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-sm">
-                {proyectos.map((proyecto: any) => {
-                  const cliente = proyecto.inmuebles?.clientes;
-                  const fechaFormateada = proyecto.fecha_solicitud 
-                    ? new Date(proyecto.fecha_solicitud).toISOString().split('T')[0] 
-                    : 'N/A';
-
-                  return (
-                    <tr key={proyecto.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="font-medium text-slate-900">{proyecto.titulo}</div>
-                        <div className="text-xs text-slate-500">{proyecto.tipo_trabajo || 'Sin tipo especificado'}</div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-1.5 text-slate-900 font-medium">
-                          <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                          {proyecto.inmuebles?.nombre_referencia || proyecto.inmuebles?.direccion || 'Inmueble sin nombre'}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
-                          <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          {cliente?.nombre || 'Cliente no asignado'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <PrioridadBadge prioridad={proyecto.prioridad} />
-                      </td>
-                      <td className="py-4 px-6">
-                        <EstadoBadge estado={proyecto.estado} />
-                      </td>
-                      <td className="py-4 px-6 text-slate-500 text-xs whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {fechaFormateada}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right whitespace-nowrap">
-                        <Link
-                          href={`/dashboard/proyectos/${proyecto.id}`}
-                          className="text-indigo-600 hover:text-indigo-900 font-medium text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors"
-                        >
-                          Ver detalle
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ProyectosTable proyectos={proyectos} />
       )}
 
     </div>

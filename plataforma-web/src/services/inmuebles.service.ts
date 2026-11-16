@@ -42,6 +42,7 @@ export async function getInmuebles() {
       relationLoadStrategy: 'join',
       select: {
         id: true,
+        nombre_referencia: true,
         direccion: true,
         comuna: true,
         tipo_uso: true,
