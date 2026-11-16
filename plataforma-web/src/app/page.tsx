@@ -1,47 +1,26 @@
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import Hero from "@/components/landing/Hero";
+import ProblemSection from "@/components/landing/ProblemSection";
+import Features from "@/components/landing/Features";
+import HowItWorks from "@/components/landing/HowItWorks";
+import CallToAction from "@/components/landing/CallToAction";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: {
-    default: "PGTE | Gestión Técnica Eléctrica",
-    template: "%s | PGTE",
-  },
-  description:
-    "Plataforma de Gestión Técnica Eléctrica. Sistema web para gestionar viviendas, levantamientos eléctricos y cotizaciones de servicios eléctricos.",
-  applicationName: "PGTE",
-  keywords: [
-    "PGTE",
-    "gestión técnica eléctrica",
-    "levantamientos eléctricos",
-    "cotizaciones eléctricas",
-    "gestión de viviendas",
-  ],
-};
-
-export default function RootLayout({
-  children,
-}: LayoutProps<"/">) {
+export default function LandingPage() {
   return (
-    <html
-      lang="es"
-      data-scroll-behavior="smooth"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        {children}
-      </body>
-    </html>
+    <div className="min-h-screen bg-white font-sans text-slate-900 antialiased">
+      <Navbar />
+
+      <main>
+        <Hero />
+        <ProblemSection />
+        <Features />
+        <HowItWorks />
+        <CallToAction />
+      </main>
+
+      <Footer />
+    </div>
   );
 }
