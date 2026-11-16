@@ -1,13 +1,10 @@
-import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { obtenerContextoUsuarioActual } from '@/services/auth.service';
+import { getInmueblesParaProyecto } from '@/services/inmuebles.service';
 import { createProyecto } from '@/services/proyectos.service';
 import { ProyectoForm } from '@/components/proyectos/ProyectoForm';
 import Link from 'next/link';
 import { ArrowLeft, FolderPlus } from 'lucide-react';
 
-// Desactiva el prerenderizado instantáneo para rutas dinámicas en Next.js 16
 export const instant = false;
 
 export const metadata = {
@@ -16,35 +13,10 @@ export const metadata = {
 };
 
 export default async function NuevoProyectoPage() {
-  // Garantiza evaluación dinámica en request-time en Next.js 16
   await connection();
 
-  const contexto = await obtenerContextoUsuarioActual();
-  if (!contexto) {
-    redirect('/login');
-  }
-
-  const targetEmpresaId = contexto.empresaId || undefined;
-  const targetTecnicoId = contexto.esIndependiente ? contexto.perfilId : undefined;
-
-  const inmueblesWhere = targetEmpresaId
-    ? { clientes: { empresa_id: targetEmpresaId } }
-    : targetTecnicoId
-    ? { clientes: { tecnico_id: targetTecnicoId } }
-    : {};
-
-  const inmueblesRaw = await prisma.inmuebles.findMany({
-    where: inmueblesWhere,
-    include: { clientes: true },
-    orderBy: { created_at: 'desc' },
-  });
-
-  // Serializamos los objetos Decimal de Prisma para que pasen limpio al Client Component
-  const inmuebles = inmueblesRaw.map((inmueble: any) => ({
-    ...inmueble,
-    superficie_m2: inmueble.superficie_m2 ? Number(inmueble.superficie_m2) : null,
-    antiguedad_anios: inmueble.antiguedad_anios ? Number(inmueble.antiguedad_anios) : null,
-  }));
+  // Solo las columnas que usa el formulario, en una sola consulta con JOIN
+  const inmuebles = await getInmueblesParaProyecto();
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -65,7 +37,7 @@ export default async function NuevoProyectoPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">Registrar Nuevo Proyecto</h1>
-            <p className="text-sm text-slate-500">Crea una orden de trabajo asociada a un inmueble y cliente.</p>
+            <p className="text-sm text-slate-500">Crea una orden de trabajo asociada a un cliente y su inmueble.</p>
           </div>
         </div>
 

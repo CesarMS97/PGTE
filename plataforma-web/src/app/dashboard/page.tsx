@@ -23,12 +23,16 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let tecnicoIdFiltro: string | undefined = undefined;
+  let empresaIdFiltro: string | undefined = undefined;
+
   if (user) {
     const perfil = await prisma.perfiles.findUnique({
       where: { id: user.id },
+      select: { id: true, empresa_id: true }
     });
     if (perfil) {
-      tecnicoIdFiltro = user.id;
+      tecnicoIdFiltro = perfil.id;
+      empresaIdFiltro = perfil.empresa_id || undefined;
     }
   }
 
@@ -38,7 +42,25 @@ export default async function DashboardPage() {
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
 
-  // Prisma .count() retorna un número directamente, se asigna sin { count: ... }
+  // Filtros inteligentes que soportan tanto Técnicos Independientes como Cuentas de Empresa
+  const filtroClientes = empresaIdFiltro 
+    ? { empresa_id: empresaIdFiltro } 
+    : tecnicoIdFiltro 
+    ? { tecnico_id: tecnicoIdFiltro } 
+    : {};
+
+  const filtroInmuebles = empresaIdFiltro
+    ? { clientes: { empresa_id: empresaIdFiltro } }
+    : tecnicoIdFiltro
+    ? { proyectos: { some: { tecnico_id: tecnicoIdFiltro } } }
+    : {};
+
+  const filtroProyectoTecnico = empresaIdFiltro
+    ? { proyectos: { inmuebles: { clientes: { empresa_id: empresaIdFiltro } } } }
+    : tecnicoIdFiltro
+    ? { proyectos: { tecnico_id: tecnicoIdFiltro } }
+    : {};
+
   const [
     clientesCount,
     inmueblesCount,
@@ -47,9 +69,23 @@ export default async function DashboardPage() {
     visitasPendientes,
     ultimasCotizaciones,
   ] = await Promise.all([
-    prisma.clientes.count({ where: { activo: true } }),
-    prisma.inmuebles.count({ where: { activo: true } }),
+    // Clientes (filtrados por empresa o técnico)
+    prisma.clientes.count({
+      where: {
+        activo: true,
+        ...filtroClientes,
+      },
+    }),
     
+    // Inmuebles asociados
+    prisma.inmuebles.count({
+      where: {
+        activo: true,
+        ...filtroInmuebles,
+      },
+    }),
+    
+    // Visitas técnicas pendientes del técnico actual
     prisma.visitas_tecnicas.count({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
@@ -57,8 +93,15 @@ export default async function DashboardPage() {
         fecha_programada: { lte: hoyFin },
       },
     }),
-    prisma.cotizaciones.count(),
+
+    // Cotizaciones aisladas
+    prisma.cotizaciones.count({
+      where: {
+        ...filtroProyectoTecnico,
+      },
+    }),
     
+    // Listado de visitas pendientes aisladas
     prisma.visitas_tecnicas.findMany({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
@@ -80,7 +123,11 @@ export default async function DashboardPage() {
       take: 5,
     }),
 
+    // Listado de cotizaciones recientes aisladas
     prisma.cotizaciones.findMany({
+      where: {
+        ...filtroProyectoTecnico,
+      },
       include: {
         proyectos: {
           include: {

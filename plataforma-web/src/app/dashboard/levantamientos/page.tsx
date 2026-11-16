@@ -14,11 +14,9 @@ import {
   Zap
 } from 'lucide-react';
 import { 
-  obtenerVisitasDelDia, 
-  obtenerClientesFiltro, 
+  obtenerDatosInicialesLevantamientos,
   obtenerInmueblesPorCliente, 
   obtenerVisitasPorInmueble,
-  obtenerHistorialLevantamientos
 } from '@/services/levantamientos.service';
 
 export default function LevantamientosPage() {
@@ -34,15 +32,12 @@ export default function LevantamientosPage() {
 
   useEffect(() => {
     async function cargarDatosIniciales() {
-      const [resVisitasHoy, resClientes, resHistorial] = await Promise.all([
-        obtenerVisitasDelDia(),
-        obtenerClientesFiltro(),
-        obtenerHistorialLevantamientos()
-      ]);
+      // Una sola server action (las 3 consultas se ejecutan en paralelo en el servidor)
+      const datos = await obtenerDatosInicialesLevantamientos();
 
-      if (resVisitasHoy.success) setVisitasDelDia(resVisitasHoy.data);
-      if (resClientes.success) setClientes(resClientes.data);
-      if (resHistorial.success) setHistorial(resHistorial.data);
+      setVisitasDelDia(datos.visitasDelDia);
+      setClientes(datos.clientes);
+      setHistorial(datos.historial);
     }
 
     cargarDatosIniciales();

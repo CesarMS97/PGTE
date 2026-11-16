@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -16,6 +15,7 @@ import {
   authStyles,
   authInputClass,
 } from "@/components/auth/authStyles";
+import { crearPerfilDespuesDeRegistro } from "@/services/auth.service";
 
 type Field =
   | "name"
@@ -134,8 +134,10 @@ export default function RegisterForm() {
     try {
       const supabase = createClient();
 
+      const cleanedEmail = email.trim().toLowerCase();
+
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: cleanedEmail,
         password,
         options: {
           data: {
@@ -193,6 +195,19 @@ export default function RegisterForm() {
         return;
       }
 
+      // Creamos el perfil localmente en Prisma inmediatamente después del éxito en Supabase Auth
+      if (data.user) {
+        const perfilRes = await crearPerfilDespuesDeRegistro({
+          userId: data.user.id,
+          nombre: name.trim(),
+          email: cleanedEmail,
+        });
+
+        if (!perfilRes.success) {
+          console.error("Aviso: El usuario se creó en Auth pero hubo un problema al sincronizar el perfil:", perfilRes.error);
+        }
+      }
+
       setPassword("");
       setConfirmPassword("");
 
@@ -220,15 +235,10 @@ export default function RegisterForm() {
       noValidate
       className={authStyles.form}
     >
-      {/* Nombre completo */}
       <div>
-        <label
-          htmlFor="register-name"
-          className={authStyles.label}
-        >
+        <label htmlFor="register-name" className={authStyles.label}>
           Nombre completo
         </label>
-
         <input
           id="register-name"
           type="text"
@@ -241,26 +251,18 @@ export default function RegisterForm() {
           }}
           placeholder="Ej. Juan Pérez"
           aria-invalid={Boolean(errors.name)}
-          aria-describedby={
-            errors.name ? "register-name-error" : undefined
-          }
+          aria-describedby={errors.name ? "register-name-error" : undefined}
           className={authInputClass(Boolean(errors.name))}
         />
-
         <div id="register-name-error">
           <FieldError message={errors.name} />
         </div>
       </div>
 
-      {/* Correo electrónico */}
       <div>
-        <label
-          htmlFor="register-email"
-          className={authStyles.label}
-        >
+        <label htmlFor="register-email" className={authStyles.label}>
           Correo electrónico
         </label>
-
         <input
           id="register-email"
           type="email"
@@ -272,26 +274,18 @@ export default function RegisterForm() {
           }}
           placeholder="correo@ejemplo.cl"
           aria-invalid={Boolean(errors.email)}
-          aria-describedby={
-            errors.email ? "register-email-error" : undefined
-          }
+          aria-describedby={errors.email ? "register-email-error" : undefined}
           className={authInputClass(Boolean(errors.email))}
         />
-
         <div id="register-email-error">
           <FieldError message={errors.email} />
         </div>
       </div>
 
-      {/* Contraseña */}
       <div>
-        <label
-          htmlFor="register-password"
-          className={authStyles.label}
-        >
+        <label htmlFor="register-password" className={authStyles.label}>
           Contraseña
         </label>
-
         <div className="relative">
           <input
             id="register-password"
@@ -305,64 +299,37 @@ export default function RegisterForm() {
             }}
             placeholder="Crea una contraseña segura"
             aria-invalid={Boolean(errors.password)}
-            aria-describedby={
-              errors.password
-                ? "register-password-error"
-                : "register-password-hint"
-            }
-            className={`${authInputClass(
-              Boolean(errors.password)
-            )} pr-12`}
+            aria-describedby={errors.password ? "register-password-error" : "register-password-hint"}
+            className={`${authInputClass(Boolean(errors.password))} pr-12`}
           />
-
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={
-              showPassword
-                ? "Ocultar contraseña"
-                : "Mostrar contraseña"
-            }
+            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             aria-pressed={showPassword}
             className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition-colors hover:text-blue-600"
           >
-            {showPassword ? (
-              <EyeOff size={19} aria-hidden="true" />
-            ) : (
-              <Eye size={19} aria-hidden="true" />
-            )}
+            {showPassword ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
           </button>
         </div>
-
         <div id="register-password-error">
           <FieldError message={errors.password} />
         </div>
-
         {!errors.password && (
-          <p
-            id="register-password-hint"
-            className="mt-2 text-xs text-slate-500"
-          >
+          <p id="register-password-hint" className="mt-2 text-xs text-slate-500">
             Utiliza al menos 8 caracteres.
           </p>
         )}
       </div>
 
-      {/* Confirmar contraseña */}
       <div>
-        <label
-          htmlFor="register-confirm-password"
-          className={authStyles.label}
-        >
+        <label htmlFor="register-confirm-password" className={authStyles.label}>
           Confirmar contraseña
         </label>
-
         <div className="relative">
           <input
             id="register-confirm-password"
-            type={
-              showConfirmPassword ? "text" : "password"
-            }
+            type={showConfirmPassword ? "text" : "password"}
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => {
@@ -371,82 +338,42 @@ export default function RegisterForm() {
             }}
             placeholder="Repite tu contraseña"
             aria-invalid={Boolean(errors.confirmPassword)}
-            aria-describedby={
-              errors.confirmPassword
-                ? "register-confirm-password-error"
-                : undefined
-            }
-            className={`${authInputClass(
-              Boolean(errors.confirmPassword)
-            )} pr-12`}
+            aria-describedby={errors.confirmPassword ? "register-confirm-password-error" : undefined}
+            className={`${authInputClass(Boolean(errors.confirmPassword))} pr-12`}
           />
-
           <button
             type="button"
-            onClick={() =>
-              setShowConfirmPassword((prev) => !prev)
-            }
-            aria-label={
-              showConfirmPassword
-                ? "Ocultar confirmación de contraseña"
-                : "Mostrar confirmación de contraseña"
-            }
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            aria-label={showConfirmPassword ? "Ocultar confirmación" : "Mostrar confirmación"}
             aria-pressed={showConfirmPassword}
             className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition-colors hover:text-blue-600"
           >
-            {showConfirmPassword ? (
-              <EyeOff size={19} aria-hidden="true" />
-            ) : (
-              <Eye size={19} aria-hidden="true" />
-            )}
+            {showConfirmPassword ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
           </button>
         </div>
-
         <div id="register-confirm-password-error">
           <FieldError message={errors.confirmPassword} />
         </div>
       </div>
 
-      {/* Error general */}
       {serverError && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-        >
-          <AlertCircle
-            size={19}
-            className="shrink-0"
-            aria-hidden="true"
-          />
+        <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle size={19} className="shrink-0" aria-hidden="true" />
           <p>{serverError}</p>
         </div>
       )}
 
-      {/* Registro exitoso */}
       {success && (
-        <div
-          role="status"
-          className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"
-        >
-          <CheckCircle2
-            size={20}
-            className="shrink-0"
-            aria-hidden="true"
-          />
+        <div role="status" className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <CheckCircle2 size={20} className="shrink-0" aria-hidden="true" />
           <p>{success}</p>
         </div>
       )}
 
-      {/* Botón principal */}
-      <button
-        type="submit"
-        disabled={loading || Boolean(success)}
-        className={authStyles.button}
-      >
+      <button type="submit" disabled={loading || Boolean(success)} className={authStyles.button}>
         {loading ? "Creando cuenta..." : "Crear cuenta"}
       </button>
 
-      {/* Enlace al login */}
       <p className={authStyles.footer}>
         ¿Ya tienes una cuenta?{" "}
         <Link href="/login" className={authStyles.link}>

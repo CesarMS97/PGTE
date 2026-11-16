@@ -1,11 +1,8 @@
-import { obtenerClientePorId } from "@/services/clientes.service";
+import { getClientePorId } from "@/services/clientes.service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteClienteButton } from "@/components/clientes/DeleteClienteButton";
 import { connection } from "next/server";
-
-// Configuración requerida en Next.js 16 para rutas dinámicas con llamadas a servidor
-export const instant = false;
 
 interface ClienteDetallePageProps {
   params: Promise<{ id: string }>;
@@ -16,8 +13,8 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
 
   const { id } = await params;
 
-  // Obtenemos los datos del cliente incluyendo sus viviendas/inmuebles relacionados
-  const cliente = await obtenerClientePorId(id);
+  // Obtenemos los datos del cliente con la consulta optimizada
+  const cliente = await getClientePorId(id);
 
   if (!cliente) {
     notFound();
@@ -63,7 +60,6 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
             Editar datos
           </Link>
           
-          {/* Botón de eliminación integrado de forma segura */}
           <DeleteClienteButton id={cliente.id} />
         </div>
       </div>
@@ -101,9 +97,9 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
             <p className="text-xs text-gray-500 mt-0.5">Inmuebles registrados bajo la tutela de este cliente.</p>
           </div>
           
-          {/* Botón funcional para registrar un nuevo inmueble */}
+          {/* Enlace mejorado que pasa el cliente_id preseleccionado */}
           <Link 
-            href="/dashboard/inmuebles/nuevo"
+            href={`/dashboard/inmuebles/nuevo?cliente_id=${cliente.id}`}
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition-colors flex items-center gap-1.5"
           >
             + Nuevo inmueble
@@ -117,14 +113,13 @@ export default async function ClienteDetallePage({ params }: ClienteDetallePageP
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {cliente.inmuebles.map((inmueble) => (
+            {cliente.inmuebles.map((inmueble: any) => (
               <div key={inmueble.id} className="py-4 flex justify-between items-center">
                 <div>
                   <p className="font-semibold text-gray-800">{inmueble.direccion}</p>
                   <p className="text-xs text-gray-500">Comuna: {inmueble.comuna || "No especificada"}</p>
                 </div>
                 
-                {/* Enlace al detalle del inmueble */}
                 <Link
                   href={`/dashboard/inmuebles/${inmueble.id}`}
                   className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors"

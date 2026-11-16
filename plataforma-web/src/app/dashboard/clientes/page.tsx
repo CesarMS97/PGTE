@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { obtenerClientes } from "@/services/clientes.service";
+import { getClientes } from "@/services/clientes.service";
 import { obtenerContextoUsuarioActual } from "@/services/auth.service";
 import ClientesHeader from "@/components/clientes/ClientesHeader";
 import ClientesTable from "@/components/clientes/ClientesTable";
@@ -10,8 +10,11 @@ import { StatsCard } from "@/components/ui/StatsCard";
 async function ClientesContent() {
   await connection();
 
-  // 1. Obtenemos el contexto completo del usuario actual
-  const contexto = await obtenerContextoUsuarioActual();
+  // Contexto cacheado por request y lista de clientes en paralelo
+  const [contexto, clientes] = await Promise.all([
+    obtenerContextoUsuarioActual(),
+    getClientes(),
+  ]);
 
   if (!contexto) {
     return (
@@ -26,25 +29,22 @@ async function ClientesContent() {
     );
   }
 
-  // 2. Consultamos los clientes dependiendo de si es empresa o independiente
-  const clientes = await obtenerClientes(
-    contexto.empresaId ?? undefined,
-    contexto.esIndependiente ? contexto.perfilId : undefined
-  );
-
-  // Nombre para mostrar en el header o saludo
   const nombreEntidad = contexto.empresa?.nombre || "Técnico Independiente";
   const idEntidad = contexto.empresaId || contexto.perfilId;
 
+  // Total real de inmuebles (antes contaba clientes que tenían al menos uno)
+  const totalInmuebles = clientes.reduce(
+    (acumulado, c) => acumulado + c._count.inmuebles,
+    0
+  );
+
   return (
-    // Contenedor principal con padding lateral y ancho máximo para separarlo de las orillas
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       <ClientesHeader
         empresaNombre={nombreEntidad}
         empresaId={idEntidad}
       />
 
-      {/* Tarjetas de resumen */}
       {clientes.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <StatsCard
@@ -55,13 +55,7 @@ async function ClientesContent() {
 
           <StatsCard
             label="Total Inmuebles"
-            value={
-              clientes.filter(
-                (c: any) =>
-                  c.inmuebles &&
-                  c.inmuebles.length > 0
-              ).length
-            }
+            value={totalInmuebles}
             gradient="indigo"
           />
         </div>
@@ -76,7 +70,6 @@ async function ClientesContent() {
   );
 }
 
-// Página principal con Suspense
 export default function ClientesPage() {
   return (
     <Suspense fallback={<ClientesLoading />}>
@@ -85,7 +78,6 @@ export default function ClientesPage() {
   );
 }
 
-// Componente mostrado mientras se cargan los datos
 function ClientesLoading() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-pulse">

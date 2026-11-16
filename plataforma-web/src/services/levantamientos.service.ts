@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { obtenerContextoUsuarioActual } from '@/services/auth.service';
+import { filtroClientes, type ContextoTenant } from '@/lib/tenant';
 
 export interface GuardarLevantamientoInput {
   visitaId: string;
@@ -31,7 +32,7 @@ function sanitizeData(obj: any): any {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeData(item));
+    return obj.map((item) => sanitizeData(item));
   }
   if (typeof obj === 'object') {
     const clone: any = {};
@@ -43,10 +44,29 @@ function sanitizeData(obj: any): any {
   return obj;
 }
 
+// La visita debe pertenecer a tu empresa / a ti
+async function visitaPermitida(ctx: ContextoTenant, visitaId: string) {
+  const visita = await prisma.visitas_tecnicas.findFirst({
+    where: {
+      id: visitaId,
+      proyectos: { inmuebles: { clientes: filtroClientes(ctx) } },
+    },
+    select: { id: true },
+  });
+  return !!visita;
+}
+
 export async function autoguardarLevantamiento(data: GuardarLevantamientoInput) {
   try {
     if (!data.visitaId) {
       return { success: false, error: 'Falta el ID de la visita técnica' };
+    }
+
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No autorizado' };
+
+    if (!(await visitaPermitida(ctx, data.visitaId))) {
+      return { success: false, error: 'Visita técnica no encontrada o sin permisos' };
     }
 
     const tension = parseDecimalValue(data.tensionNominalV);
@@ -88,8 +108,17 @@ export async function autoguardarLevantamiento(data: GuardarLevantamientoInput) 
 
 export async function obtenerLevantamientoPorVisita(visitaId: string) {
   try {
-    const levantamiento = await prisma.levantamientos.findUnique({
-      where: { visita_id: visitaId },
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, error: 'No autorizado' };
+
+    // El filtro de pertenencia va dentro de la misma consulta (sin viaje extra)
+    const levantamiento = await prisma.levantamientos.findFirst({
+      where: {
+        visita_id: visitaId,
+        visitas_tecnicas: {
+          proyectos: { inmuebles: { clientes: filtroClientes(ctx) } },
+        },
+      },
     });
     return { success: true, data: sanitizeData(levantamiento) };
   } catch (error) {
@@ -100,10 +129,10 @@ export async function obtenerLevantamientoPorVisita(visitaId: string) {
 
 export async function finalizarLevantamiento(data: GuardarLevantamientoInput) {
   try {
+    // autoguardar ya valida la sesión y la pertenencia de la visita
     const res = await autoguardarLevantamiento(data);
     if (!res.success || !res.data) return res;
 
-    // Actualiza la visita técnica a completada automáticamente
     await prisma.visitas_tecnicas.update({
       where: { id: data.visitaId },
       data: { estado: 'completada' },
@@ -120,30 +149,49 @@ export async function finalizarLevantamiento(data: GuardarLevantamientoInput) {
 
 export async function obtenerVisitasDelDia() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, data: [] };
 
     const hoyInicio = new Date();
     hoyInicio.setHours(0, 0, 0, 0);
-    
+
     const hoyFin = new Date();
     hoyFin.setHours(23, 59, 59, 999);
 
     const visitas = await prisma.visitas_tecnicas.findMany({
       where: {
-        ...(user ? { tecnico_id: user.id } : {}),
-        estado: { not: 'completada' }, // Excluye las ya completadas del listado de pendientes
+        tecnico_id: ctx.perfilId,
+        estado: { not: 'completada' },
         fecha_programada: {
           gte: hoyInicio,
           lte: hoyFin,
         },
       },
-      include: {
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        fecha_programada: true,
+        estado: true,
+        motivo: true,
+        observaciones: true,
         proyectos: {
-          include: {
+          select: {
+            id: true,
+            titulo: true,
+            tipo_trabajo: true,
             inmuebles: {
-              include: {
-                clientes: true,
+              select: {
+                id: true,
+                direccion: true,
+                comuna: true,
+                nombre_referencia: true,
+                clientes: {
+                  select: {
+                    id: true,
+                    nombre: true,
+                    telefono: true,
+                  },
+                },
               },
             },
           },
@@ -160,27 +208,16 @@ export async function obtenerVisitasDelDia() {
 
 export async function obtenerClientesFiltro() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    let filtroWhere: any = { activo: true };
-
-    if (user) {
-      const perfil = await prisma.perfiles.findUnique({
-        where: { id: user.id },
-      });
-
-      if (perfil) {
-        if (perfil.empresa_id) {
-          filtroWhere.empresa_id = perfil.empresa_id;
-        } else {
-          filtroWhere.tecnico_id = user.id;
-        }
-      }
-    }
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, data: [] };
 
     const clientes = await prisma.clientes.findMany({
-      where: filtroWhere,
+      where: { activo: true, ...filtroClientes(ctx) },
+      select: {
+        id: true,
+        nombre: true,
+        rut: true,
+      },
       orderBy: { nombre: 'asc' },
     });
 
@@ -193,8 +230,21 @@ export async function obtenerClientesFiltro() {
 
 export async function obtenerInmueblesPorCliente(clienteId: string) {
   try {
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, data: [] };
+
     const inmuebles = await prisma.inmuebles.findMany({
-      where: { cliente_id: clienteId, activo: true },
+      where: {
+        cliente_id: clienteId,
+        activo: true,
+        clientes: filtroClientes(ctx),
+      },
+      select: {
+        id: true,
+        direccion: true,
+        comuna: true,
+        nombre_referencia: true,
+      },
       orderBy: { direccion: 'asc' },
     });
 
@@ -207,18 +257,22 @@ export async function obtenerInmueblesPorCliente(clienteId: string) {
 
 export async function obtenerVisitasPorInmueble(inmuebleId: string) {
   try {
-    const proyectos = await prisma.proyectos.findMany({
-      where: { inmueble_id: inmuebleId },
-      select: { id: true },
-    });
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, data: [] };
 
-    const proyectoIds = proyectos.map((p) => p.id);
-
-    if (proyectoIds.length === 0) return { success: true, data: [] };
-
+    // Una sola consulta (antes eran dos en serie: proyectos y luego visitas)
     const visitas = await prisma.visitas_tecnicas.findMany({
       where: {
-        proyecto_id: { in: proyectoIds },
+        proyectos: {
+          inmueble_id: inmuebleId,
+          inmuebles: { clientes: filtroClientes(ctx) },
+        },
+      },
+      select: {
+        id: true,
+        fecha_programada: true,
+        estado: true,
+        motivo: true,
       },
       orderBy: { fecha_programada: 'desc' },
     });
@@ -232,23 +286,44 @@ export async function obtenerVisitasPorInmueble(inmuebleId: string) {
 
 export async function obtenerHistorialLevantamientos() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const ctx = await obtenerContextoUsuarioActual();
+    if (!ctx) return { success: false, data: [] };
 
     const levantamientos = await prisma.levantamientos.findMany({
-      where: user ? {
+      where: {
         visitas_tecnicas: {
-          tecnico_id: user.id
-        }
-      } : {},
-      include: {
+          tecnico_id: ctx.perfilId,
+        },
+      },
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        visita_id: true,
+        tipo_instalacion: true,
+        tipo_empalme: true,
+        tension_nominal_v: true,
+        potencia_contratada_kw: true,
+        updated_at: true,
         visitas_tecnicas: {
-          include: {
+          select: {
+            id: true,
+            fecha_programada: true,
+            estado: true,
             proyectos: {
-              include: {
+              select: {
+                id: true,
+                titulo: true,
                 inmuebles: {
-                  include: {
-                    clientes: true,
+                  select: {
+                    id: true,
+                    direccion: true,
+                    nombre_referencia: true,
+                    clientes: {
+                      select: {
+                        id: true,
+                        nombre: true,
+                      },
+                    },
                   },
                 },
               },
@@ -264,4 +339,19 @@ export async function obtenerHistorialLevantamientos() {
     console.error('Error al obtener historial de levantamientos:', error);
     return { success: false, data: [] };
   }
+}
+
+// Una sola llamada desde el navegador: las 3 consultas corren en paralelo en el servidor
+export async function obtenerDatosInicialesLevantamientos() {
+  const [visitas, clientes, historial] = await Promise.all([
+    obtenerVisitasDelDia(),
+    obtenerClientesFiltro(),
+    obtenerHistorialLevantamientos(),
+  ]);
+
+  return {
+    visitasDelDia: visitas.data as any[],
+    clientes: clientes.data as any[],
+    historial: historial.data as any[],
+  };
 }

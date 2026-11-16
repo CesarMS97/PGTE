@@ -1,5 +1,5 @@
 import { connection } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getInmueblePorId } from '@/services/inmuebles.service';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { DeleteInmuebleButton } from '@/components/inmuebles/DeleteInmuebleButton';
@@ -15,13 +15,8 @@ export default async function DetalleInmueblePage({ params }: PageProps) {
   await connection();
   const { id } = await params;
 
-  const inmueble = await prisma.inmuebles.findUnique({
-    where: { id },
-    include: {
-      clientes: true,
-      proyectos: true,
-    },
-  });
+  // Pasa por el servicio: valida que el inmueble sea de tu empresa / tuyo
+  const inmueble = await getInmueblePorId(id);
 
   if (!inmueble) {
     notFound();
