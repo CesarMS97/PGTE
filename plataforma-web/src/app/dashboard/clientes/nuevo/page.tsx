@@ -3,10 +3,10 @@ import { ClienteForm } from '@/components/clientes/ClientForm';
 
 export default function NuevoClientePage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 p-6">
       <div>
-        <Link 
-          href="/dashboard/clientes" 
+        <Link
+          href="/dashboard/clientes"
           className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
         >
           ← Volver a Clientes
@@ -15,7 +15,7 @@ export default function NuevoClientePage() {
           Registrar Nuevo Cliente
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Ingresa la información del cliente para vincularlo a la empresa.
+          Ingresa la información del cliente para vincularlo a tu sesión de trabajo.
         </p>
       </div>
 

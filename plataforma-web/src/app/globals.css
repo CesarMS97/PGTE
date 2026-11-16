@@ -34,5 +34,5 @@ body {
 
 /* Evita que el Navbar tape los títulos */
 html {
-  scroll-padding-top: 80px;
+  scroll-padding-top: 5rem;
 }

@@ -1,75 +1,183 @@
 
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, Check, ClipboardCheck } from "lucide-react";
+
 export default function Hero() {
   return (
     <section
       id="inicio"
-      className="relative flex min-h-[620px] scroll-mt-20 items-center overflow-hidden bg-slate-950 text-white"
+      className="
+        relative isolate flex min-h-[580px]
+        scroll-mt-20 items-center overflow-hidden
+        bg-[#06162E] text-white
+        sm:min-h-[620px] lg:min-h-[680px]
+      "
     >
-      {/* Imagen de fondo */}
+      {/* Imagen optimizada del Hero */}
+      <Image
+        src="/images/home.jpg"
+        alt=""
+        fill
+        preload
+        sizes="100vw"
+        aria-hidden="true"
+        className="
+          -z-20 object-cover
+          object-[68%_center]
+          sm:object-[60%_center]
+          lg:object-[center_40%]
+        "
+      />
+
+      {/* Degradado principal PGTE */}
       <div
-        className="absolute inset-0 bg-cover bg-center lg:bg-[position:center_40%]"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10"
         style={{
-          backgroundImage: "url('/images/home.jpg')",
+          background:
+            "linear-gradient(90deg, rgba(3,12,30,0.94) 0%, rgba(3,12,30,0.88) 30%, rgba(3,12,30,0.62) 55%, rgba(3,12,30,0.18) 100%)",
         }}
       />
 
-      {/* Degradado */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/25" />
+      {/* Contraste adicional en celulares */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-slate-950/20 sm:bg-transparent"
+      />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-12 lg:py-28">
-        {/* Contenido principal */}
-        <div className="space-y-7 lg:col-span-7">
+      {/* Contenido principal */}
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-12 lg:px-8 lg:py-28">
+
+        {/* Texto principal */}
+        <div className="min-w-0 space-y-6 sm:space-y-7 lg:col-span-7">
+
+          {/* Etiqueta */}
           <span className="block text-xs font-bold uppercase tracking-[0.18em] text-blue-400">
-            Tecnología para el trabajo eléctrico
+            Tu trabajo eléctrico, más organizado
           </span>
 
-          <h1 className="max-w-3xl text-4xl font-bold leading-[1.15] tracking-tight sm:text-5xl lg:text-[54px]">
-            Gestiona tus servicios eléctricos
-            <span className="block text-blue-400">
-              en una sola plataforma
+          {/* Título */}
+          <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.12] tracking-tight sm:text-5xl lg:text-[56px]">
+            Menos papeleo.
+            <span className="mt-2 block text-blue-400">
+              Más tiempo para tus trabajos eléctricos.
             </span>
           </h1>
 
-          <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            Centraliza tus registros técnicos, administra viviendas
-            y organiza cotizaciones desde una plataforma diseñada
-            para profesionales del sector eléctrico.
+          {/* Descripción */}
+          <p className="max-w-xl text-base leading-7 text-slate-200 sm:text-lg sm:leading-8">
+            Registra tus levantamientos técnicos, organiza
+            la información de cada vivienda y prepara
+            cotizaciones desde una sola plataforma,
+            estés en terreno o en casa.
           </p>
 
-          <div className="flex flex-wrap gap-4 pt-3">
-            <a
-              href="#como-funciona"
-              className="inline-flex items-center gap-3 rounded-lg bg-blue-600 px-6 py-3.5 font-semibold text-white transition-colors hover:bg-blue-700"
-            >
-              Conocer la plataforma
-              <span aria-hidden="true">→</span>
-            </a>
+          {/* Botones */}
+          <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:flex-wrap sm:gap-4">
 
             <a
-              href="#funcionalidades"
-              className="inline-flex items-center rounded-lg border border-slate-500/50 bg-slate-900/50 px-6 py-3.5 font-semibold text-white backdrop-blur-sm transition-colors hover:bg-slate-800"
+              href="#como-funciona"
+              className="
+                inline-flex min-h-12 w-full items-center
+                justify-center gap-3 rounded-lg
+                bg-blue-600 px-6 py-3.5
+                text-center text-sm font-semibold
+                text-white transition-colors
+                hover:bg-blue-500
+                focus-visible:outline-2
+                focus-visible:outline-offset-2
+                focus-visible:outline-blue-400
+                sm:w-auto sm:text-base
+              "
             >
-              Ver funcionalidades
+              Descubre cómo funciona
+              <ArrowRight size={18} aria-hidden="true" />
             </a>
+
+            <Link
+              href="/login"
+              className="
+                inline-flex min-h-12 w-full items-center
+                justify-center rounded-lg
+                border border-white/30 bg-slate-950/35
+                px-6 py-3.5 text-center
+                text-sm font-semibold text-white
+                backdrop-blur-sm transition-colors
+                hover:bg-white/10
+                focus-visible:outline-2
+                focus-visible:outline-offset-2
+                focus-visible:outline-blue-400
+                sm:w-auto sm:text-base
+              "
+            >
+              Ingresar a PGTE
+            </Link>
+          </div>
+
+          {/* Beneficios rápidos */}
+          <div className="flex flex-wrap gap-x-5 gap-y-3 pt-5 text-sm text-slate-200">
+            {[
+              "Registros centralizados",
+              "Historial por vivienda",
+              "Cotizaciones organizadas",
+            ].map((beneficio) => (
+              <div
+                key={beneficio}
+                className="flex items-center gap-2"
+              >
+                <Check
+                  size={16}
+                  strokeWidth={2.5}
+                  className="shrink-0 text-blue-400"
+                  aria-hidden="true"
+                />
+                <span>{beneficio}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Tarjeta informativa */}
+        {/* Tarjeta informativa - Solo escritorio */}
         <div className="hidden justify-end lg:col-span-5 lg:flex">
-          <div className="w-64 rounded-xl border border-white/15 bg-slate-950/55 p-6 shadow-xl backdrop-blur-md">
-            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400">
-              <span className="text-xl">✓</span>
+          <div
+            className="
+              w-72 rounded-2xl border border-white/20
+              bg-[#06162E]/65 p-7
+              shadow-2xl backdrop-blur-md
+            "
+          >
+            {/* Icono */}
+            <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400">
+              <ClipboardCheck size={24} aria-hidden="true" />
             </div>
 
-            <h3 className="mb-3 text-lg font-semibold">
-              Gestión más eficiente
-            </h3>
+            {/* Título */}
+            <h2 className="mb-3 text-lg font-bold">
+              Todo en un solo lugar
+            </h2>
 
-            <div className="space-y-2 text-sm text-slate-300">
-              <p>Registros centralizados</p>
-              <p>Información organizada</p>
-              <p className="font-medium text-blue-400">
-                Mejores decisiones técnicas
+            {/* Descripción */}
+            <p className="mb-5 text-sm leading-6 text-slate-200">
+              Organiza la información de tus trabajos
+              sin depender de múltiples archivos o registros.
+            </p>
+
+            {/* Funcionalidades */}
+            <div className="space-y-3 text-sm">
+              <p className="flex items-center gap-2 text-slate-200">
+                <Check size={16} className="text-blue-400" />
+                Fichas de viviendas
+              </p>
+
+              <p className="flex items-center gap-2 text-slate-200">
+                <Check size={16} className="text-blue-400" />
+                Levantamientos técnicos
+              </p>
+
+              <p className="flex items-center gap-2 font-semibold text-blue-400">
+                <Check size={16} />
+                Cotizaciones
               </p>
             </div>
           </div>
