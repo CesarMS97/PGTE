@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { agregarItemCotizacion, eliminarItemCotizacion, finalizarCotizacion } from '@/services/cotizaciones.service';
-import { Plus, Trash2, CheckCircle2, Loader2, Download, MessageSquare, ClipboardCheck, ShieldAlert, ChevronDown, ChevronUp, User, Building2, MapPin, Zap } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Loader2, Download, MessageSquare, ClipboardCheck, ShieldAlert, ChevronDown, ChevronUp, User, Building2, MapPin, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface CotizacionFormViewProps {
   proyectoId: string;
@@ -52,9 +52,21 @@ export function CotizacionFormView({
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [mostrarLevantamiento, setMostrarLevantamiento] = useState(true);
 
+  // Estado local para los hallazgos permitiendo reordenamiento táctil con botones
+  const rawHallazgos = parsearHallazgosParaVista(levantamiento?.observaciones);
+  const [hallazgosList, setHallazgosList] = useState<string[]>(rawHallazgos);
+
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  const hallazgosList = parsearHallazgosParaVista(levantamiento?.observaciones);
+  const moverHallazgo = (index: number, direccion: 'arriba' | 'abajo') => {
+    const nuevoIndex = direccion === 'arriba' ? index - 1 : index + 1;
+    if (nuevoIndex < 0 || nuevoIndex >= hallazgosList.length) return;
+    const copia = [...hallazgosList];
+    const temp = copia[index];
+    copia[index] = copia[nuevoIndex];
+    copia[nuevoIndex] = temp;
+    setHallazgosList(copia);
+  };
 
   const subtotalMateriales = items
     .filter((i) => i.tipo === 'material')
@@ -265,13 +277,36 @@ export function CotizacionFormView({
                 </span>
 
                 {hallazgosList.length > 0 ? (
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <ul className="space-y-2">
                     {hallazgosList.map((hallazgo, idx) => (
-                      <li key={idx} className="flex items-start gap-2 bg-white/10 p-2.5 rounded-lg border border-white/5 text-slate-200">
-                        <span className="w-4 h-4 rounded-full bg-amber-400/20 text-amber-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
-                        <span className="leading-relaxed">{hallazgo}</span>
+                      <li key={idx} className="flex items-center justify-between gap-3 bg-white/10 p-3 rounded-xl border border-white/5 text-slate-200">
+                        <div className="flex items-start gap-2.5 flex-1">
+                          <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <span className="leading-relaxed">{hallazgo}</span>
+                        </div>
+                        {/* Botones de control táctil optimizados para celulares y tablets */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => moverHallazgo(idx, 'arriba')}
+                            disabled={idx === 0}
+                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
+                            title="Mover arriba"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moverHallazgo(idx, 'abajo')}
+                            disabled={idx === hallazgosList.length - 1}
+                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
+                            title="Mover abajo"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -446,11 +481,10 @@ export function CotizacionFormView({
           </div>
         </div>
 
-        {/* CONTENEDOR OCULTO CON EL NUEVO DISEÑO PROFESIONAL PARA EL PDF DEL CLIENTE */}
+        {/* CONTENEDOR OCULTO PARA EL PDF DEL CLIENTE */}
         <div style={{ display: 'none' }}>
           <div ref={pdfRef} style={{ padding: '25px', fontFamily: 'sans-serif', color: '#1e293b', background: '#ffffff', fontSize: '11px' }}>
             
-            {/* Cabecera del Documento */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '15px', marginBottom: '20px' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
@@ -469,10 +503,7 @@ export function CotizacionFormView({
               </div>
             </div>
 
-            {/* Bloques de Proveedor y Cliente */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
-              
-              {/* Proveedor / Técnico */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
                 <div style={{ background: '#f1f5f9', padding: '6px 10px', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1', fontSize: '10px', textTransform: 'uppercase', color: '#475569' }}>
                   Técnico / Empresa Proveedora
@@ -484,7 +515,6 @@ export function CotizacionFormView({
                 </div>
               </div>
 
-              {/* Cliente */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
                 <div style={{ background: '#f1f5f9', padding: '6px 10px', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1', fontSize: '10px', textTransform: 'uppercase', color: '#475569' }}>
                   Cliente / Destinatario
@@ -495,15 +525,12 @@ export function CotizacionFormView({
                   <p style={{ margin: '0' }}><strong>Inmueble / Dir:</strong> {nombreInmueble} ({direccionInmueble}, {comunaInmueble})</p>
                 </div>
               </div>
-
             </div>
 
-            {/* Título de la Sección */}
             <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#0f172a', marginBottom: '8px', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
               Descripción de Servicios y Cotización
             </div>
 
-            {/* Tabla de Servicios / Ítems */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
               <thead>
                 <tr style={{ background: '#0f172a', color: '#ffffff', textAlign: 'left' }}>
@@ -527,7 +554,6 @@ export function CotizacionFormView({
               </tbody>
             </table>
 
-            {/* Resumen de Totales */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '30px' }}>
               <div style={{ width: '250px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
@@ -545,7 +571,6 @@ export function CotizacionFormView({
               </div>
             </div>
 
-            {/* Pie de página informativo */}
             <div style={{ textAlign: 'center', fontSize: '9px', color: '#64748b', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
               Documento generado digitalmente a través de PGTE (Plataforma de Gestión Técnica Eléctrica). Válido como presupuesto comercial.
             </div>

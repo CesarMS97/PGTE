@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, FileText, Plus, X, MessageSquare, Search, User, Building2, MapPin } from 'lucide-react';
@@ -8,6 +8,7 @@ import { ArrowRight, FileText, Plus, X, MessageSquare, Search, User, Building2, 
 interface CotizacionesViewProps {
   cotizaciones: any[];
   levantamientos: any[];
+  filtrosCard?: ReactNode;
 }
 
 // WhatsApp necesita solo dígitos y código de país
@@ -17,7 +18,11 @@ function telefonoParaWhatsApp(telefono: string | null | undefined): string {
   return digitos.length === 9 && digitos.startsWith('9') ? `56${digitos}` : digitos;
 }
 
-export function CotizacionesView({ cotizaciones, levantamientos }: CotizacionesViewProps) {
+export function CotizacionesView({
+  cotizaciones,
+  levantamientos,
+  filtrosCard,
+}: CotizacionesViewProps) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [busqueda, setBusqueda] = useState('');
@@ -42,7 +47,7 @@ export function CotizacionesView({ cotizaciones, levantamientos }: CotizacionesV
 
   return (
     <div className="max-w-7xl mx-auto p-6 sm:p-8 space-y-6">
-      {/* Cabecera */}
+      {/* 1. Tarjeta Módulo de Cotizaciones (arriba) */}
       <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -68,7 +73,10 @@ export function CotizacionesView({ cotizaciones, levantamientos }: CotizacionesV
         </button>
       </div>
 
-      {/* Listado Principal */}
+      {/* 2. Tarjeta Buscar Cotizaciones (debajo de Módulo de Cotizaciones) */}
+      {filtrosCard}
+
+      {/* 3. Listado Principal */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <h3 className="font-bold text-slate-900 text-sm">Historial de Presupuestos</h3>
@@ -219,7 +227,7 @@ export function CotizacionesView({ cotizaciones, levantamientos }: CotizacionesV
                           <Building2 className="w-3.5 h-3.5 text-indigo-600" /> {lev.inmueble_ref}
                         </span>
                         <span className="flex items-center gap-1 text-slate-500">
-                          <MapPin className="w-3 h-3 text-slate-400" /> {lev.inmueble_comuna}
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" /> {lev.inmueble_comuna}
                         </span>
                       </div>
                     </div>
