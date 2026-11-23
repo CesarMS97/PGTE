@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { deleteProyecto } from '@/services/proyectos.service';
 import { PrioridadBadge, EstadoBadge } from '@/components/proyectos/ProyectoBadges';
@@ -14,13 +15,13 @@ import {
   Plus,
   Calendar,
   Zap,
-  CheckCircle2,
-  ShieldAlert,
   MapPin,
   Phone,
   Mail,
   Trash2,
-  ArrowRight
+  ArrowRight,
+  Sparkles,
+  Receipt
 } from 'lucide-react';
 
 function formatearFechaHoraChile(fecha: string | Date | null | undefined): string {
@@ -66,6 +67,7 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
     .map((v: any) => v.levantamientos ? { ...v.levantamientos, visitaMotivo: v.motivo, visitaFecha: v.fecha_programada } : null)
     .filter(Boolean);
 
+  const visitaPendienteLevantamiento = visitas.find((v: any) => !v.levantamientos) || visitas[0];
   const fechaRealProyecto = proyecto.fecha_solicitud || proyecto.created_at;
 
   const handleDelete = async () => {
@@ -92,6 +94,110 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
 
   return (
     <div className="space-y-6">
+
+      {/* Guía Rápida del Siguiente Paso (Proyecto -> Visita Técnica -> Levantamiento -> Cotización) */}
+      {visitas.length === 0 ? (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-xl shrink-0 mt-0.5">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 block">
+                Siguiente paso recomendado
+              </span>
+              <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                Crea o agenda la Visita Técnica para comenzar
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                Flujo de trabajo: <strong>1. Visita Técnica</strong> &rarr; <strong>2. Levantamiento</strong> &rarr; <strong>3. Cotización</strong>.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsVisitaModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl transition-colors shadow-sm shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            Crear Visita Técnica
+          </button>
+        </div>
+      ) : levantamientos.length === 0 && visitaPendienteLevantamiento ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shrink-0 mt-0.5">
+              <ClipboardCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
+                Visita registrada — Paso 2 pendiente
+              </span>
+              <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                Inicia el Levantamiento Técnico del proyecto
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                Registra los parámetros eléctricos y hallazgos en terreno antes de generar la cotización.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsVisitaModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Otra Visita
+            </button>
+            <Link
+              href={`/dashboard/levantamientos/nuevo?visitaId=${visitaPendienteLevantamiento.id}`}
+              className="inline-flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              Iniciar Levantamiento
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-emerald-600 text-white rounded-xl shrink-0 mt-0.5">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                Levantamiento listo — Paso 3 disponible
+              </span>
+              <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                Ya puedes preparar la Cotización del proyecto
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                Revisa o edita el levantamiento y pasa al módulo de cotizaciones para armar el presupuesto.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('levantamientos')}
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer"
+            >
+              Ver Levantamientos
+            </button>
+            <Link
+              href="/dashboard/cotizaciones"
+              className="inline-flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              Ir a Cotizaciones
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      )}
       
       {/* Cabecera Principal del Proyecto */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -400,14 +506,14 @@ export function ProyectoDetalleTabs({ proyecto }: ProyectoDetalleTabsProps) {
                         </div>
 
                         <div>
-                          <a
+                          <Link
                             href={`/dashboard/levantamientos/nuevo?visitaId=${visita.id}`}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors shadow-sm"
                           >
                             <Plus className="w-4 h-4" />
                             {lev ? 'Editar Levantamiento' : 'Iniciar Levantamiento'}
                             <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-                          </a>
+                          </Link>
                         </div>
                       </div>
 

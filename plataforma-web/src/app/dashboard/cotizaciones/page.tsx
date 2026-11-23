@@ -5,22 +5,28 @@ import {
   getCotizaciones,
   getProyectosParaCotizar,
 } from '@/services/cotizaciones.service';
-import { CotizacionesView } from '@/components/cotizaciones/CotizacionesView';
+import { CotizacionesFiltrosWrapper } from '@/components/cotizaciones/CotizacionesFiltrosWrapper';
+import { CotizacionesRapidasListado } from '@/components/cotizaciones/CotizacionesRapidasListado';
 
 async function CotizacionesContent() {
   await connection();
 
-  // Ambas consultas en paralelo, directamente en el servidor
   const [cotizaciones, levantamientos] = await Promise.all([
     getCotizaciones(),
     getProyectosParaCotizar(),
   ]);
 
   return (
-    <CotizacionesView
-      cotizaciones={cotizaciones}
-      levantamientos={levantamientos}
-    />
+    <div className="space-y-8 pb-10">
+      <CotizacionesFiltrosWrapper
+        cotizaciones={cotizaciones}
+        levantamientos={levantamientos}
+      />
+
+      <div className="max-w-7xl mx-auto px-6 sm:px-8">
+        <CotizacionesRapidasListado />
+      </div>
+    </div>
   );
 }
 

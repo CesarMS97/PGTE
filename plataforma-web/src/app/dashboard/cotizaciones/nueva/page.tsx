@@ -17,14 +17,22 @@ async function NuevaCotizacionContent({ searchParams }: PageProps) {
     redirect('/dashboard/cotizaciones');
   }
 
-  // Proyecto + cliente + cotización con ítems en una sola consulta
   const resultado = await obtenerOCrearCotizacion(proyectoId);
 
   if (!resultado) {
     redirect('/dashboard/cotizaciones');
   }
 
-  const { cotizacion, proyectoTitulo, clienteNombre } = resultado;
+  const { 
+    cotizacion, 
+    proyectoTitulo, 
+    clienteNombre, 
+    clienteTelefono,
+    inmuebleDireccion, 
+    inmuebleComuna, 
+    inmuebleReferencia, 
+    levantamiento 
+  } = resultado;
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -40,9 +48,9 @@ async function NuevaCotizacionContent({ searchParams }: PageProps) {
               </span>
             </div>
             <h1 className="text-xl font-extrabold text-slate-900 mt-2">Generar Presupuesto Comercial</h1>
+            {/* Se removió el texto del cliente de aquí arriba, dejando solo el título del proyecto */}
             <p className="text-xs text-slate-500 mt-0.5">
-              Proyecto: <span className="font-semibold text-slate-700">{proyectoTitulo}</span> — Cliente:{' '}
-              <span className="font-semibold text-slate-700">{clienteNombre}</span>
+              Proyecto: <span className="font-semibold text-slate-700">{proyectoTitulo}</span>
             </p>
           </div>
 
@@ -54,7 +62,13 @@ async function NuevaCotizacionContent({ searchParams }: PageProps) {
           </a>
         </div>
 
-        <CotizacionFormView proyectoId={cotizacion.proyecto_id} initialCotizacion={cotizacion} />
+        <CotizacionFormView 
+          proyectoId={cotizacion.proyecto_id} 
+          initialCotizacion={cotizacion} 
+          levantamiento={levantamiento}
+          clienteInfo={{ nombre: clienteNombre, telefono: clienteTelefono }}
+          inmuebleInfo={{ direccion: inmuebleDireccion, comuna: inmuebleComuna, referencia: inmuebleReferencia }}
+        />
       </div>
     </div>
   );

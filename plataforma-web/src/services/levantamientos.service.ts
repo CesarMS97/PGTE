@@ -111,16 +111,58 @@ export async function obtenerLevantamientoPorVisita(visitaId: string) {
     const ctx = await obtenerContextoUsuarioActual();
     if (!ctx) return { success: false, error: 'No autorizado' };
 
-    // El filtro de pertenencia va dentro de la misma consulta (sin viaje extra)
-    const levantamiento = await prisma.levantamientos.findFirst({
+    // Buscamos la visita con su contexto (proyecto -> inmueble -> cliente) y su levantamiento si ya existe
+    const visita = await prisma.visitas_tecnicas.findFirst({
       where: {
-        visita_id: visitaId,
-        visitas_tecnicas: {
-          proyectos: { inmuebles: { clientes: filtroClientes(ctx) } },
+        id: visitaId,
+        proyectos: { inmuebles: { clientes: filtroClientes(ctx) } },
+      },
+      relationLoadStrategy: 'join',
+      select: {
+        id: true,
+        motivo: true,
+        fecha_programada: true,
+        estado: true,
+        proyectos: {
+          select: {
+            id: true,
+            titulo: true,
+            inmuebles: {
+              select: {
+                id: true,
+                nombre_referencia: true,
+                direccion: true,
+                comuna: true,
+                clientes: {
+                  select: {
+                    id: true,
+                    nombre: true,
+                    telefono: true,
+                  },
+                },
+              },
+            },
+          },
         },
+        levantamientos: true,
       },
     });
-    return { success: true, data: sanitizeData(levantamiento) };
+
+    if (!visita) {
+      return { success: false, error: 'Visita técnica no encontrada o sin permisos' };
+    }
+
+    return {
+      success: true,
+      data: sanitizeData(visita.levantamientos),
+      visita: sanitizeData({
+        id: visita.id,
+        motivo: visita.motivo,
+        fecha_programada: visita.fecha_programada,
+        estado: visita.estado,
+        proyectos: visita.proyectos,
+      }),
+    };
   } catch (error) {
     console.error('Error al obtener levantamiento:', error);
     return { success: false, error: 'Error al cargar el levantamiento' };
