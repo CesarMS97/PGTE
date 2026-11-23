@@ -32,7 +32,6 @@ export default function LevantamientosPage() {
 
   useEffect(() => {
     async function cargarDatosIniciales() {
-      // Una sola server action (las 3 consultas se ejecutan en paralelo en el servidor)
       const datos = await obtenerDatosInicialesLevantamientos();
 
       setVisitasDelDia(datos.visitasDelDia);
@@ -70,17 +69,17 @@ export default function LevantamientosPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="max-w-7xl mx-auto p-6 sm:p-8 pb-12 space-y-6">
       
       {/* Cabecera del Módulo */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
             <ClipboardList className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Levantamientos Técnicos</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg font-bold text-slate-900">Levantamientos Técnicos</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
               Gestión de inspecciones en terreno, parámetros eléctricos y borradores de trabajo.
             </p>
           </div>
@@ -92,7 +91,7 @@ export default function LevantamientosPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-lg font-bold">Visitas Programadas para Hoy</h2>
+            <h2 className="text-base sm:text-lg font-bold">Visitas Programadas para Hoy</h2>
           </div>
           <span className="text-xs bg-white/10 text-yellow-300 font-semibold px-3 py-1 rounded-full border border-white/10">
             {visitasDelDia.length} programadas
@@ -105,34 +104,43 @@ export default function LevantamientosPage() {
               const inmueble = visita.proyectos?.inmuebles;
               const cliente = inmueble?.clientes;
               const fechaHora = visita.fecha_programada ? new Date(visita.fecha_programada) : null;
+              const nombreInmueble = inmueble?.nombre_referencia || inmueble?.direccion || 'Inmueble Principal';
 
               return (
-                <div key={visita.id} className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 space-y-3 hover:bg-white/15 transition-all">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-yellow-400">
-                        {fechaHora ? fechaHora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : 'Sin hora'} hrs
+                <div key={visita.id} className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 space-y-3 hover:bg-white/15 transition-all flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-yellow-400 block">
+                          {fechaHora ? fechaHora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : 'Sin hora'} hrs
+                        </span>
+                        <h3 className="font-bold text-base text-white mt-0.5 leading-snug">
+                          {visita.motivo || visita.proyectos?.titulo || 'Visita Técnica'}
+                        </h3>
+                      </div>
+                      <span className="p-1.5 bg-blue-600/40 text-blue-200 rounded-lg shrink-0">
+                        <Zap className="w-4 h-4" />
                       </span>
-                      <h3 className="font-bold text-base text-white mt-0.5">{visita.motivo || visita.proyectos?.titulo || 'Visita Técnica'}</h3>
                     </div>
-                    <span className="p-1.5 bg-blue-600/40 text-blue-200 rounded-lg">
-                      <Zap className="w-4 h-4" />
-                    </span>
-                  </div>
 
-                  <div className="text-xs space-y-1 text-slate-300">
-                    <p className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
-                      {cliente?.nombre || 'Cliente sin nombre'}
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      {inmueble?.direccion || 'Dirección no especificada'}
-                    </p>
+                    {/* Bloque detallado: Inmueble, Dirección y Cliente */}
+                    <div className="bg-black/20 p-3 rounded-lg space-y-2 text-xs border border-white/5">
+                      <div className="flex items-start gap-2 text-slate-200">
+                        <Building2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold text-white block">{nombreInmueble}</span>
+                          <span className="text-slate-300 block">{inmueble?.direccion}, {inmueble?.comuna}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-300 pt-1 border-t border-white/5">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Cliente: <strong className="text-white">{cliente?.nombre || 'No asignado'}</strong></span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-                    <span className="text-xs text-slate-400 capitalize">Estado: {visita.estado || 'Pendiente'}</span>
+                    <span className="text-[11px] text-slate-400 capitalize">Estado: {visita.estado || 'Pendiente'}</span>
                     <Link
                       href={`/dashboard/levantamientos/nuevo?visitaId=${visita.id}`}
                       className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
@@ -153,7 +161,7 @@ export default function LevantamientosPage() {
       </div>
 
       {/* Sección 2: Búsqueda y Filtros en Cascada */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
           <Filter className="w-5 h-5 text-blue-600" />
           <h2 className="text-base font-bold text-slate-900">Búsqueda y Filtros Jerárquicos</h2>
@@ -165,7 +173,7 @@ export default function LevantamientosPage() {
             <select 
               value={clienteSeleccionado}
               onChange={handleCambioCliente}
-              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
             >
               <option value="">Seleccione un cliente...</option>
               {clientes.map((c: any) => (
@@ -180,11 +188,13 @@ export default function LevantamientosPage() {
               value={inmuebleSeleccionado}
               onChange={handleCambioInmueble}
               disabled={!clienteSeleccionado}
-              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
             >
               <option value="">Seleccione inmueble...</option>
               {inmuebles.map((i: any) => (
-                <option key={i.id} value={i.id}>{i.direccion} ({i.comuna})</option>
+                <option key={i.id} value={i.id}>
+                  {i.nombre_referencia ? `${i.nombre_referencia} - ` : ''}{i.direccion} ({i.comuna})
+                </option>
               ))}
             </select>
           </div>
@@ -195,7 +205,7 @@ export default function LevantamientosPage() {
               value={visitaSeleccionada}
               onChange={(e) => setVisitaSeleccionada(e.target.value)}
               disabled={!inmuebleSeleccionado}
-              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
             >
               <option value="">Seleccione visita...</option>
               {visitasInmueble.map((v: any) => (
@@ -211,7 +221,7 @@ export default function LevantamientosPage() {
           <Link
             href={visitaSeleccionada ? `/dashboard/levantamientos/nuevo?visitaId=${visitaSeleccionada}` : '#'}
             onClick={(e) => { if (!visitaSeleccionada) e.preventDefault(); }}
-            className={`bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2.5 px-5 rounded-lg transition-colors shadow-sm flex items-center gap-2 ${!visitaSeleccionada ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2.5 px-5 rounded-xl transition-colors shadow-sm flex items-center gap-2 ${!visitaSeleccionada ? 'opacity-50 pointer-events-none' : ''}`}
           >
             <Plus className="w-4 h-4" />
             Ir a Formulario de Levantamiento
@@ -220,7 +230,7 @@ export default function LevantamientosPage() {
       </div>
 
       {/* Sección 3: Historial y Listado General */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
         <h2 className="text-base font-bold text-slate-900">Historial de Levantamientos Registrados</h2>
 
         {historial.length > 0 ? (
@@ -229,6 +239,7 @@ export default function LevantamientosPage() {
               const visita = lev.visitas_tecnicas;
               const inmueble = visita?.proyectos?.inmuebles;
               const cliente = inmueble?.clientes;
+              const nombreInmueble = inmueble?.nombre_referencia || inmueble?.direccion || 'Inmueble Principal';
 
               return (
                 <div key={lev.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -240,8 +251,10 @@ export default function LevantamientosPage() {
                       <h3 className="font-bold text-slate-900 text-sm">
                         Instalación {lev.tipo_instalacion || 'Eléctrica'} ({lev.tipo_empalme || 'No especificado'})
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Cliente: <span className="font-medium text-slate-700">{cliente?.nombre || 'N/A'}</span> • Inmueble: <span className="font-medium text-slate-700">{inmueble?.direccion || 'N/A'}</span>
+                      <p className="text-xs text-slate-500 mt-0.5 space-x-2">
+                        <span>Cliente: <strong className="text-slate-700">{cliente?.nombre || 'N/A'}</strong></span>
+                        <span>•</span>
+                        <span>Inmueble: <strong className="text-slate-700">{nombreInmueble} ({inmueble?.comuna || ''})</strong></span>
                       </p>
                     </div>
                   </div>

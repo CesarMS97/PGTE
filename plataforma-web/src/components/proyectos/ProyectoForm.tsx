@@ -23,7 +23,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Extraer la lista única de clientes a partir de los inmuebles disponibles
   const clientesMap = new Map();
   inmuebles.forEach((inm) => {
     if (inm.clientes) {
@@ -32,7 +31,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
   });
   const clientes = Array.from(clientesMap.values()).sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
 
-  // Preseleccionar cliente si estamos editando o si viene un inmueble por defecto
   const inmuebleInicial = inmuebles.find((i) => i.id === defaultValues.inmueble_id);
   const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string>(
     inmuebleInicial?.clientes?.id || ''
@@ -41,7 +39,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
     defaultValues.inmueble_id || ''
   );
 
-  // Filtrar los inmuebles que pertenecen exclusivamente al cliente seleccionado
   const inmueblesFiltrados = inmuebles.filter(
     (inm) => inm.clientes?.id === clienteIdSeleccionado
   );
@@ -63,7 +60,17 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
       const res = await action(formData);
 
       if (!res || res.success !== false) {
-        router.push('/dashboard/proyectos');
+        const proyectoCreadoId =
+          res?.data?.id ||
+          res?.proyecto?.id ||
+          res?.data?.proyecto?.id ||
+          res?.id;
+
+        if (!isEditing && proyectoCreadoId) {
+          router.push(`/dashboard/proyectos/${proyectoCreadoId}`);
+        } else {
+          router.push('/dashboard/proyectos');
+        }
         router.refresh();
       } else {
         setErrorMsg(res.error || 'No se pudo guardar el proyecto.');
@@ -96,7 +103,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Paso 1: Selección de Cliente */}
           <div>
             <label htmlFor="cliente_filtro" className="block text-sm font-medium text-slate-700 mb-1">
               1. Seleccionar Cliente <span className="text-red-500">*</span>
@@ -106,7 +112,7 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
               value={clienteIdSeleccionado}
               onChange={(e) => {
                 setClienteIdSeleccionado(e.target.value);
-                setInmuebleIdSeleccionado(''); // Reiniciar inmueble al cambiar de cliente
+                setInmuebleIdSeleccionado('');
               }}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
@@ -119,7 +125,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
             </select>
           </div>
 
-          {/* Paso 2: Selección de Inmueble (Dependiente del cliente) */}
           <div>
             <label htmlFor="inmueble_id" className="block text-sm font-medium text-slate-700 mb-1">
               2. Seleccionar Inmueble <span className="text-red-500">*</span>
@@ -150,7 +155,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         </div>
       )}
 
-      {/* Título del Proyecto */}
       <div>
         <label htmlFor="titulo" className="block text-sm font-medium text-slate-700 mb-1">
           Título del Proyecto <span className="text-red-500">*</span>
@@ -166,7 +170,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         />
       </div>
 
-      {/* Tipo de Trabajo y Prioridad */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="tipo_trabajo" className="block text-sm font-medium text-slate-700 mb-1">
@@ -199,7 +202,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         </div>
       </div>
 
-      {/* Estado Inicial */}
       <div>
         <label htmlFor="estado" className="block text-sm font-medium text-slate-700 mb-1">
           Estado
@@ -217,7 +219,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         </select>
       </div>
 
-      {/* Descripción */}
       <div>
         <label htmlFor="descripcion" className="block text-sm font-medium text-slate-700 mb-1">
           Descripción / Observaciones
@@ -232,7 +233,6 @@ export function ProyectoForm({ inmuebles, action, defaultValues = {}, isEditing 
         ></textarea>
       </div>
 
-      {/* Botones de Acción */}
       <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
         <Link
           href="/dashboard/proyectos"

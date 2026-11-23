@@ -41,7 +41,6 @@ export async function getProyectoPorId(id: string) {
     const ctx = await obtenerContextoUsuarioActual();
     if (!ctx) return null;
 
-    // Filtro de pertenencia dentro de la consulta + todo en un solo JOIN
     const proyecto = await prisma.proyectos.findFirst({
       where: { id, inmuebles: { clientes: filtroClientes(ctx) } },
       relationLoadStrategy: 'join',
@@ -128,7 +127,6 @@ export async function getProyectoPorId(id: string) {
 
     if (!proyecto) return null;
 
-    // Proyectos antiguos sin técnico asignado: mostramos el perfil del usuario independiente
     if (!proyecto.perfiles) {
       const perfilIdABuscar = proyecto.tecnico_id || (ctx.esIndependiente ? ctx.perfilId : null);
 
@@ -172,7 +170,6 @@ export async function createProyecto(formData: FormData) {
       return { success: false, error: 'El inmueble y el título del proyecto son obligatorios.' };
     }
 
-    // El inmueble debe pertenecer a tu empresa / a ti
     const inmuebleValido = await prisma.inmuebles.findFirst({
       where: { id: inmueble_id, clientes: filtroClientes(ctx) },
       select: { id: true },
@@ -187,7 +184,7 @@ export async function createProyecto(formData: FormData) {
     const [anio, mes, dia] = fechaChileStr.split('-').map(Number);
     const fechaSolicitudLocal = new Date(Date.UTC(anio, mes - 1, dia, 12, 0, 0));
 
-    await prisma.proyectos.create({
+    const nuevoProyecto = await prisma.proyectos.create({
       data: {
         inmueble_id,
         titulo,
@@ -198,11 +195,15 @@ export async function createProyecto(formData: FormData) {
         fecha_solicitud: fechaSolicitudLocal,
         tecnico_id: ctx.perfilId,
       },
+      select: {
+        id: true,
+      },
     });
 
     revalidatePath('/dashboard/proyectos');
+    revalidatePath(`/dashboard/proyectos/${nuevoProyecto.id}`);
     revalidatePath('/dashboard');
-    return { success: true };
+    return { success: true, id: nuevoProyecto.id, data: nuevoProyecto };
   } catch (error: any) {
     console.error('Error al crear el proyecto:', error);
     return { success: false, error: error.message || 'No se pudo registrar el proyecto.' };
@@ -218,8 +219,8 @@ export async function updateProyecto(id: string, formData: FormData) {
     const titulo = formData.get('titulo') as string;
     const descripcion = formData.get('descripcion') as string;
     const tipo_trabajo = formData.get('tipo_trabajo') as string;
-    const prioridad = formData.get('prioridad') as string;
-    const estado = formData.get('estado') as string;
+    const prioridad = (formData.get('prioridad') as string) || 'normal';
+    const estado = (formData.get('estado') as string) || 'solicitado';
 
     if (!inmueble_id || !titulo) {
       return { success: false, error: 'El inmueble y el título del proyecto son obligatorios.' };

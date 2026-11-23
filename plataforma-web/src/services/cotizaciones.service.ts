@@ -31,7 +31,6 @@ function serializarItem(item: {
 }
 
 // Recalcula los totales de una cotización en UNA sola sentencia SQL
-// (antes: leer todos los ítems, sumar en JS y actualizar = 2 viajes extra)
 function recalcularTotales(cotizacionId: string) {
   return prisma.$executeRaw`
     UPDATE public.cotizaciones c
@@ -139,8 +138,7 @@ export async function getProyectosParaCotizar() {
   }
 }
 
-// Proyecto + cliente + última cotización con ítems en UNA consulta.
-// Si el proyecto no tiene cotización, crea el borrador.
+// Proyecto + cliente + inmueble + levantamiento técnico + última cotización con ítems en UNA consulta.
 export async function obtenerOCrearCotizacion(proyectoId: string) {
   try {
     const ctx = await obtenerContextoUsuarioActual();
@@ -154,7 +152,25 @@ export async function obtenerOCrearCotizacion(proyectoId: string) {
         titulo: true,
         inmuebles: {
           select: {
-            clientes: { select: { nombre: true, telefono: true } },
+            direccion: true,
+            comuna: true,
+            nombre_referencia: true,
+            clientes: { select: { id: true, nombre: true, telefono: true } },
+          },
+        },
+        visitas_tecnicas: {
+          select: {
+            levantamientos: {
+              select: {
+                tipo_instalacion: true,
+                tipo_empalme: true,
+                tension_nominal_v: true,
+                potencia_contratada_kw: true,
+                puesta_tierra: true,
+                resistencia_tierra_ohm: true,
+                observaciones: true,
+              },
+            },
           },
         },
         cotizaciones: {
@@ -182,12 +198,28 @@ export async function obtenerOCrearCotizacion(proyectoId: string) {
       });
     }
 
-    const cliente = proyecto.inmuebles?.clientes ?? null;
+    const inmueble = proyecto.inmuebles ?? null;
+    const cliente = inmueble?.clientes ?? null;
+
+    const levantamientoRaw = proyecto.visitas_tecnicas?.[0]?.levantamientos ?? null;
+    const levantamiento = levantamientoRaw ? {
+      tipo_instalacion: levantamientoRaw.tipo_instalacion,
+      tipo_empalme: levantamientoRaw.tipo_empalme,
+      tension_nominal_v: levantamientoRaw.tension_nominal_v ? Number(levantamientoRaw.tension_nominal_v) : null,
+      potencia_contratada_kw: levantamientoRaw.potencia_contratada_kw ? Number(levantamientoRaw.potencia_contratada_kw) : null,
+      puesta_tierra: levantamientoRaw.puesta_tierra,
+      resistencia_tierra_ohm: levantamientoRaw.resistencia_tierra_ohm ? Number(levantamientoRaw.resistencia_tierra_ohm) : null,
+      observaciones: levantamientoRaw.observaciones,
+    } : null;
 
     return {
       proyectoTitulo: proyecto.titulo,
       clienteNombre: cliente?.nombre ?? 'N/A',
-      // Misma forma que espera CotizacionFormView (initialCotizacion)
+      clienteTelefono: cliente?.telefono ?? null,
+      inmuebleDireccion: inmueble?.direccion ?? 'Dirección no especificada',
+      inmuebleComuna: inmueble?.comuna ?? 'Sin comuna',
+      inmuebleReferencia: inmueble?.nombre_referencia ?? null,
+      levantamiento,
       cotizacion: {
         id: cot.id,
         proyecto_id: cot.proyecto_id,
@@ -202,7 +234,7 @@ export async function obtenerOCrearCotizacion(proyectoId: string) {
         cotizacion_items: cot.cotizacion_items.map(serializarItem),
         proyectos: {
           titulo: proyecto.titulo,
-          inmuebles: { clientes: cliente },
+          inmuebles: inmueble,
         },
       },
     };
@@ -238,7 +270,6 @@ export async function agregarItemCotizacion(formData: {
       return { success: false, error: 'El precio unitario no es válido.' };
     }
 
-    // La cotización debe ser de tu empresa / tuya
     const cotizacionValida = await prisma.cotizaciones.findFirst({
       where: {
         id: formData.cotizacionId,
@@ -252,7 +283,6 @@ export async function agregarItemCotizacion(formData: {
 
     const tipo = TIPOS_ITEM.includes(formData.tipo) ? formData.tipo : 'otro';
 
-    // Inserción y recálculo de totales en la misma transacción
     const [item] = await prisma.$transaction([
       prisma.cotizacion_items.create({
         data: {

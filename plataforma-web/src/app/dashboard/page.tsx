@@ -12,8 +12,8 @@ import {
   ClipboardPlus,
   ArrowRight,
   Clock3,
+  Zap,
 } from "lucide-react";
-
 
 export const instant = false;
 
@@ -29,7 +29,7 @@ export default async function DashboardPage() {
   if (user) {
     const perfil = await prisma.perfiles.findUnique({
       where: { id: user.id },
-      select: { id: true, empresa_id: true }
+      select: { id: true, empresa_id: true },
     });
     if (perfil) {
       tecnicoIdFiltro = perfil.id;
@@ -39,15 +39,14 @@ export default async function DashboardPage() {
 
   const hoyInicio = new Date();
   hoyInicio.setHours(0, 0, 0, 0);
-  
+
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
 
-  // Filtros inteligentes que soportan tanto Técnicos Independientes como Cuentas de Empresa
-  const filtroClientes = empresaIdFiltro 
-    ? { empresa_id: empresaIdFiltro } 
-    : tecnicoIdFiltro 
-    ? { tecnico_id: tecnicoIdFiltro } 
+  const filtroClientes = empresaIdFiltro
+    ? { empresa_id: empresaIdFiltro }
+    : tecnicoIdFiltro
+    ? { tecnico_id: tecnicoIdFiltro }
     : {};
 
   const filtroInmuebles = empresaIdFiltro
@@ -70,43 +69,38 @@ export default async function DashboardPage() {
     visitasPendientes,
     ultimasCotizaciones,
   ] = await Promise.all([
-    // Clientes (filtrados por empresa o técnico)
     prisma.clientes.count({
       where: {
         activo: true,
         ...filtroClientes,
       },
     }),
-    
-    // Inmuebles asociados
+
     prisma.inmuebles.count({
       where: {
         activo: true,
         ...filtroInmuebles,
       },
     }),
-    
-    // Visitas técnicas pendientes del técnico actual
+
     prisma.visitas_tecnicas.count({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
-        estado: { not: 'completada' },
+        estado: { not: "completada" },
         fecha_programada: { lte: hoyFin },
       },
     }),
 
-    // Cotizaciones aisladas
     prisma.cotizaciones.count({
       where: {
         ...filtroProyectoTecnico,
       },
     }),
-    
-    // Listado de visitas pendientes aisladas
+
     prisma.visitas_tecnicas.findMany({
       where: {
         ...(tecnicoIdFiltro ? { tecnico_id: tecnicoIdFiltro } : {}),
-        estado: { not: 'completada' },
+        estado: { not: "completada" },
         fecha_programada: { lte: hoyFin },
       },
       include: {
@@ -120,11 +114,10 @@ export default async function DashboardPage() {
           },
         },
       },
-      orderBy: { fecha_programada: 'asc' },
+      orderBy: { fecha_programada: "asc" },
       take: 5,
     }),
 
-    // Listado de cotizaciones recientes aisladas
     prisma.cotizaciones.findMany({
       where: {
         ...filtroProyectoTecnico,
@@ -140,7 +133,7 @@ export default async function DashboardPage() {
           },
         },
       },
-      orderBy: { created_at: 'desc' },
+      orderBy: { created_at: "desc" },
       take: 5,
     }),
   ]);
@@ -156,12 +149,12 @@ export default async function DashboardPage() {
     { label: "Nuevo cliente", href: "/dashboard/clientes", icon: UserPlus },
     { label: "Nueva vivienda", href: "/dashboard/inmuebles", icon: HousePlus },
     { label: "Nuevo levantamiento", href: "/dashboard/levantamientos", icon: ClipboardPlus },
+    { label: "Nueva cotización rápida", href: "/dashboard/cotizaciones/rapida?nueva=1", icon: Zap },
   ];
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="mx-auto max-w-7xl space-y-8">
-
         <header>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
             Mi panel de trabajo
@@ -189,33 +182,62 @@ export default async function DashboardPage() {
           ))}
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Acciones rápidas
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Comienza una nueva gestión.
-          </p>
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Acciones rápidas
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Comienza una nueva gestión.
+            </p>
+          </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            {actions.map(({ label, href, icon: Icon }) => (
-              <Link
-                key={label}
-                href={href}
-                className="flex items-center gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-400 hover:bg-blue-50"
-              >
-                <Icon className="h-6 w-6 text-blue-700" />
-                <span className="flex-1 text-sm font-medium text-slate-800">
-                  {label}
-                </span>
-                <ArrowRight className="h-4 w-4 text-slate-400" />
-              </Link>
-            ))}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {actions.map(({ label, href, icon: Icon }) => {
+              const esRapida = href.startsWith("/dashboard/cotizaciones/rapida");
+              return (
+                <Link
+                  key={label}
+                  href={href}
+                  className={
+                    esRapida
+                      ? "flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50/70 p-4 transition hover:border-amber-400 hover:bg-amber-100/70"
+                      : "flex items-center gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-400 hover:bg-blue-50"
+                  }
+                >
+                  <Icon className={`h-6 w-6 ${esRapida ? "text-amber-600" : "text-blue-700"}`} />
+                  <span className="flex-1 text-sm font-medium text-slate-800">
+                    {label}
+                  </span>
+                  <ArrowRight className={`h-4 w-4 ${esRapida ? "text-amber-600" : "text-slate-400"}`} />
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                Modo express • Sin registro
+              </span>
+              <p className="text-xs sm:text-sm font-semibold text-slate-800 mt-1.5">
+                ¿Necesitas cotizar en terreno sin crear cliente ni proyecto?
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Calcula con IVA (19%), descarga en PDF o envía por WhatsApp al instante y fideliza al cliente si acepta.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/cotizaciones/rapida?nueva=1"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-xs font-bold text-white transition-colors shrink-0 shadow-xs"
+            >
+              <Zap className="h-4 w-4" />
+              Nueva Cotización Rápida
+            </Link>
           </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -234,14 +256,14 @@ export default async function DashboardPage() {
                     <div key={lev.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center text-xs">
                       <div>
                         <div className="font-bold text-slate-900 text-sm">
-                          {lev.proyectos?.titulo || 'Visita Técnica'}
+                          {lev.proyectos?.titulo || "Visita Técnica"}
                         </div>
                         <div className="text-slate-500 mt-0.5">
-                          {lev.proyectos?.inmuebles?.clientes?.nombre || 'Cliente N/A'} — {lev.proyectos?.inmuebles?.comuna || 'Sin comuna'}
+                          {lev.proyectos?.inmuebles?.clientes?.nombre || "Cliente N/A"} — {lev.proyectos?.inmuebles?.comuna || "Sin comuna"}
                         </div>
                       </div>
-                      <Link 
-                        href={`/dashboard/levantamientos`} 
+                      <Link
+                        href={`/dashboard/levantamientos`}
                         className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
                         Gestionar
@@ -278,10 +300,10 @@ export default async function DashboardPage() {
                     <div key={cot.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center text-xs">
                       <div>
                         <div className="font-bold text-blue-600 text-sm">
-                          {cot.numero} — ${Number(cot.total || 0).toLocaleString('es-CL')}
+                          {cot.numero} — ${Number(cot.total || 0).toLocaleString("es-CL")}
                         </div>
                         <div className="text-slate-500 mt-0.5">
-                          {cot.proyectos?.inmuebles?.clientes?.nombre || 'Cliente N/A'}
+                          {cot.proyectos?.inmuebles?.clientes?.nombre || "Cliente N/A"}
                         </div>
                       </div>
                       <Link
@@ -303,9 +325,7 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
-
         </section>
-
       </div>
     </main>
   );
