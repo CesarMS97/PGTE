@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { agregarItemCotizacion, eliminarItemCotizacion, finalizarCotizacion } from '@/services/cotizaciones.service';
 import { Plus, Trash2, CheckCircle2, Loader2, Download, MessageSquare, ClipboardCheck, ShieldAlert, ChevronDown, ChevronUp, User, Building2, MapPin, Zap, ArrowUp, ArrowDown } from 'lucide-react';
+import { materialesElectricos } from "@/data/materialesElectricos";
 
 interface CotizacionFormViewProps {
   proyectoId: string;
@@ -46,6 +47,19 @@ export function CotizacionFormView({
   const [descripcion, setDescripcion] = useState('');
   const [cantidadStr, setCantidadStr] = useState('1');
   const [precioStr, setPrecioStr] = useState('');
+  const [familiaMaterial, setFamiliaMaterial] = useState('Canalizaciones');
+  const [materialSeleccionado, setMaterialSeleccionado] = useState('Conduit PVC 16 mm');
+  const [materialManual, setMaterialManual] = useState(false);
+  const [agregarDescripcion, setAgregarDescripcion] = useState(false);
+  const [descripcionAdicional, setDescripcionAdicional] = useState('');
+
+  const descripcionBase = tipo === 'material' && !materialManual
+    ? materialSeleccionado
+    : descripcion;
+
+  const descripcionFinal = tipo === 'material' && agregarDescripcion && descripcionAdicional.trim()
+    ? `${descripcionBase.trim()} — ${descripcionAdicional.trim()}`
+    : descripcionBase.trim();
 
   const [adding, setAdding] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -86,35 +100,49 @@ export function CotizacionFormView({
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (adding) return;
+
     const cantNum = Number(cantidadStr);
     const precioNum = Number(precioStr);
 
-    if (!descripcion.trim() || isNaN(cantNum) || cantNum <= 0 || isNaN(precioNum) || precioNum < 0) {
+    if (!descripcionFinal.trim() || !Number.isFinite(cantNum) || cantNum <= 0 || !Number.isFinite(precioNum) || precioNum < 0) {
       alert('Por favor, ingresa una descripción válida, cantidad mayor a 0 y precio válido.');
       return;
     }
 
-    setAdding(true);
-
-    const res = await agregarItemCotizacion({
-      cotizacionId: cotizacion.id,
-      proyectoId,
-      tipo,
-      descripcion: descripcion.trim(),
-      cantidad: cantNum,
-      precioUnitario: precioNum,
-    });
-
-    if (res.success && res.item) {
-      setItems((prev) => [...prev, res.item]);
-      setDescripcion('');
-      setCantidadStr('1');
-      setPrecioStr('');
-    } else {
-      alert('Error al agregar el ítem: ' + res.error);
+    if (tipo === 'material' && agregarDescripcion && !descripcionAdicional.trim()) {
+      alert('Ingresa una descripción adicional o desmarca la casilla.');
+      return;
     }
 
-    setAdding(false);
+    setAdding(true);
+    try {
+      const res = await agregarItemCotizacion({
+        cotizacionId: cotizacion.id,
+        proyectoId,
+        tipo,
+        descripcion: descripcionFinal.trim(),
+        cantidad: cantNum,
+        precioUnitario: precioNum,
+      });
+
+      if (res.success && res.item) {
+        setItems((prev) => [...prev, res.item]);
+        setDescripcion('');
+        setMaterialManual(false);
+        setAgregarDescripcion(false);
+        setDescripcionAdicional('');
+        setCantidadStr('1');
+        setPrecioStr('');
+      } else {
+        alert('Error al agregar el ítem: ' + res.error);
+      }
+    } catch (error) {
+      console.error('Error al agregar ítem:', error);
+      alert('No fue posible agregar el ítem al presupuesto.');
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleDeleteItem = async (itemId: string) => {
@@ -337,7 +365,7 @@ export function CotizacionFormView({
             <label className="block text-slate-600 font-semibold mb-1">Categoría</label>
             <select
               value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
+              onChange={(e) => { setTipo(e.target.value); setDescripcion(''); setMaterialManual(false); }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white transition-colors"
             >
               <option value="material">Material / Insumo</option>
@@ -346,16 +374,112 @@ export function CotizacionFormView({
             </select>
           </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-slate-600 font-semibold mb-1">Descripción del Ítem</label>
-            <input
-              type="text"
-              placeholder="Ej: Tablero eléctrico de 12 polos sobrepuesto"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white transition-colors"
-              required
-            />
+          <div className="md:col-span-2 space-y-3">
+            {tipo === 'material' ? (
+              <>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Familia de materiales</label>
+                  <select
+                    value={familiaMaterial}
+                    disabled={materialManual}
+                    onChange={(e) => {
+                      const nuevaFamilia = e.target.value;
+                      setFamiliaMaterial(nuevaFamilia);
+                      setMaterialSeleccionado(materialesElectricos[nuevaFamilia]?.[0] ?? '');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white disabled:opacity-50"
+                  >
+                    {Object.keys(materialesElectricos).map((familia) => (
+                      <option key={familia} value={familia}>{familia}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {!materialManual && (
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Material y medida</label>
+                    <select
+                      value={materialSeleccionado}
+                      onChange={(e) => setMaterialSeleccionado(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white"
+                      required
+                    >
+                      {materialesElectricos[familiaMaterial]?.map((material) => (
+                        <option key={material} value={material}>{material}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={materialManual}
+                    onChange={(e) => {
+                      setMaterialManual(e.target.checked);
+                      setDescripcion('');
+                    }}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Mi material no está en la lista
+                </label>
+
+                {materialManual && (
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Descripción personalizada</label>
+                    <input
+                      type="text"
+                      value={descripcion}
+                      onChange={(e) => setDescripcion(e.target.value)}
+                      placeholder="Ej: Conduit especial 40 mm"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Descripción adicional opcional */}
+                <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={agregarDescripcion}
+                      onChange={(e) => {
+                        setAgregarDescripcion(e.target.checked);
+                        if (!e.target.checked) setDescripcionAdicional('');
+                      }}
+                      className="h-4 w-4 accent-blue-600"
+                    />
+                    Agregar descripción adicional
+                  </label>
+                  {agregarDescripcion && (
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1">Descripción adicional</label>
+                      <textarea
+                        value={descripcionAdicional}
+                        onChange={(e) => setDescripcionAdicional(e.target.value)}
+                        placeholder="Ej: 25 metros, color rojo, instalación interior"
+                        rows={2}
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:border-blue-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Descripción del Ítem</label>
+                <input
+                  type="text"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder={tipo === 'mano_obra' ? 'Ej: Instalación de canalización eléctrica' : 'Ej: Transporte de materiales'}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800 focus:bg-white"
+                  required
+                />
+              </div>
+            )}
           </div>
 
           <div>
